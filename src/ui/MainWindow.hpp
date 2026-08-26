@@ -344,6 +344,24 @@ private:
                     currentStatusMsg += L" • Disalin ke Papan Klip";
                 }
 
+                // Expand window to Editor size (1260 x 720) when image is captured
+                if (hasImage) {
+                    int editorW = 1260;
+                    int editorH = 720;
+                    RECT curRc;
+                    GetWindowRect(hwnd, &curRc);
+                    int curW = curRc.right - curRc.left;
+                    int curH = curRc.bottom - curRc.top;
+
+                    if (curW < editorW || curH < editorH) {
+                        int screenW = GetSystemMetrics(SM_CXSCREEN);
+                        int screenH = GetSystemMetrics(SM_CYSCREEN);
+                        int newX = (std::max)(0, (screenW - editorW) / 2);
+                        int newY = (std::max)(0, (screenH - editorH) / 2);
+                        SetWindowPos(hwnd, NULL, newX, newY, editorW, editorH, SWP_NOZORDER);
+                    }
+                }
+
                 UpdateLayout();
                 ShowWindow(hwnd, SW_SHOW);
                 SetForegroundWindow(hwnd);
@@ -712,8 +730,9 @@ public:
             registered = true;
         }
 
-        int winW = 1260;
-        int winH = 720;
+        // Compact Home startup dimensions (neatly fitted to content)
+        int winW = 560;
+        int winH = 420;
         int screenW = GetSystemMetrics(SM_CXSCREEN);
         int screenH = GetSystemMetrics(SM_CYSCREEN);
         int posX = (screenW - winW) / 2;
@@ -1079,16 +1098,16 @@ public:
                 g.DrawString(L"Snipping Tools", -1, &fontTitle, titleRect, &sf, &titleBrush);
 
                 // Subtitle
-                Gdiplus::Font fontSub(L"Segoe UI", 13.0f, Gdiplus::FontStyleRegular, Gdiplus::UnitPixel);
+                Gdiplus::Font fontSub(L"Segoe UI", 12.0f, Gdiplus::FontStyleRegular, Gdiplus::UnitPixel);
                 Gdiplus::SolidBrush subBrush(Gdiplus::Color(255, 160, 165, 175));
-                Gdiplus::RectF subRect(0.0f, (float)(centerY - 6), (float)width, 24.0f);
-                g.DrawString(L"Klik tombol 'Snip Baru' atau tekan pintasan Ctrl+N / PrtScn untuk mulai menangkap layar.", -1, &fontSub, subRect, &sf, &subBrush);
+                Gdiplus::RectF subRect(16.0f, (float)(centerY - 6), (float)(width - 32), 24.0f);
+                g.DrawString(L"Klik tombol 'Snip Baru' atau tekan pintasan Ctrl+N / PrtScn.", -1, &fontSub, subRect, &sf, &subBrush);
 
                 // Keyboard Shortcut Info Card
-                int cardW = 440;
-                int cardH = 92;
+                int cardW = (std::min)(480, width - 40);
+                int cardH = 88;
                 int cardX = (width - cardW) / 2;
-                int cardY = centerY + 30;
+                int cardY = centerY + 26;
 
                 Gdiplus::SolidBrush cardBg(Gdiplus::Color(255, 32, 34, 40));
                 g.FillRectangle(&cardBg, cardX, cardY, cardW, cardH);
@@ -1099,9 +1118,9 @@ public:
                 Gdiplus::Font fontKey(L"Segoe UI", 11.0f, Gdiplus::FontStyleRegular, Gdiplus::UnitPixel);
                 Gdiplus::SolidBrush keyBrush(Gdiplus::Color(255, 200, 205, 215));
 
-                g.DrawString(L"• Ctrl + N / PrtScn        : Ambil cuplikan (Snip) baru", -1, &fontKey, Gdiplus::PointF((float)(cardX + 16), (float)(cardY + 12)), &keyBrush);
-                g.DrawString(L"• Ctrl + Scroll Mouse     : Perbesar / Perkecil (Zoom) gambar", -1, &fontKey, Gdiplus::PointF((float)(cardX + 16), (float)(cardY + 36)), &keyBrush);
-                g.DrawString(L"• Ctrl + Drag / MMB Drag  : Geser posisi gambar saat diperbesar", -1, &fontKey, Gdiplus::PointF((float)(cardX + 16), (float)(cardY + 60)), &keyBrush);
+                g.DrawString(L"• Ctrl + N / PrtScn        : Ambil cuplikan (Snip) baru", -1, &fontKey, Gdiplus::PointF((float)(cardX + 16), (float)(cardY + 10)), &keyBrush);
+                g.DrawString(L"• Ctrl + Scroll Mouse     : Perbesar / Perkecil (Zoom) gambar", -1, &fontKey, Gdiplus::PointF((float)(cardX + 16), (float)(cardY + 34)), &keyBrush);
+                g.DrawString(L"• Ctrl + Drag / MMB Drag  : Geser posisi gambar saat diperbesar", -1, &fontKey, Gdiplus::PointF((float)(cardX + 16), (float)(cardY + 58)), &keyBrush);
 
             } else {
                 // ================= PREVIEW / EDITOR STATE (ZOOM & PAN ENABLED) =================
