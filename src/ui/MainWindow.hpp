@@ -326,7 +326,12 @@ private:
                 hasImage = (capturedBmp != nullptr);
                 isModified = hasImage; // Newly captured image can be saved
                 annotationEngine.Clear();
-                currentStatusMsg = L"";
+                
+                if (hasImage) {
+                    currentStatusMsg = L"✓ Cuplikan layar berhasil diambil (" + std::to_wstring(capturedBmp->GetWidth()) + L" × " + std::to_wstring(capturedBmp->GetHeight()) + L" px)";
+                } else {
+                    currentStatusMsg = L"";
+                }
 
                 // Reset zoom and pan on new snip
                 userZoom = 1.0f;
@@ -336,6 +341,7 @@ private:
                 // Auto copy to clipboard on capture if enabled
                 if (hasImage && config.autoCopyOnCapture) {
                     ClipboardHelper::CopyBitmapToClipboard(capturedBmp.get(), hwnd);
+                    currentStatusMsg += L" • Disalin ke Papan Klip";
                 }
 
                 UpdateLayout();
@@ -345,6 +351,7 @@ private:
             },
             [this]() {
                 // On Cancel: Restore MainWindow
+                currentStatusMsg = L"✕ Pengambilan cuplikan layar dibatalkan.";
                 ShowWindow(hwnd, SW_SHOW);
                 SetForegroundWindow(hwnd);
                 InvalidateRect(hwnd, NULL, FALSE);
@@ -356,7 +363,7 @@ private:
         auto finalBmp = RenderFinalImage();
         if (finalBmp) {
             ClipboardHelper::CopyBitmapToClipboard(finalBmp.get(), hwnd);
-            currentStatusMsg = L"✓ Gambar berhasil disalin ke Papan Klip (Ctrl+C).";
+            currentStatusMsg = L"📋 Gambar berhasil disalin ke Papan Klip (Ctrl+C)";
             InvalidateRect(hwnd, NULL, FALSE);
         }
     }
@@ -368,7 +375,7 @@ private:
             std::wstring savedPath;
             if (FileHelper::QuickSave(finalBmp.get(), config, savedPath)) {
                 ClipboardHelper::CopyBitmapToClipboard(finalBmp.get(), hwnd);
-                currentStatusMsg = L"✓ Tersimpan di: " + savedPath + L" (disalin ke Papan Klip)";
+                currentStatusMsg = L"💾 Berhasil disimpan di: " + savedPath + L" (disalin ke Papan Klip)";
                 isModified = false; // Reset modification flag on save
                 if (config.openExplorerAfterSave) {
                     ShellExecuteW(NULL, L"open", L"explorer.exe", (L"/select,\"" + savedPath + L"\"").c_str(), NULL, SW_SHOWNORMAL);
@@ -386,7 +393,7 @@ private:
             std::wstring savedPath;
             if (FileHelper::PromptAndSave(finalBmp.get(), config, hwnd, savedPath)) {
                 ClipboardHelper::CopyBitmapToClipboard(finalBmp.get(), hwnd);
-                currentStatusMsg = L"✓ Tersimpan sebagai: " + savedPath + L" (disalin ke Papan Klip)";
+                currentStatusMsg = L"💾 Berhasil disimpan sebagai: " + savedPath + L" (disalin ke Papan Klip)";
                 isModified = false; // Reset modification flag on save
                 if (config.openExplorerAfterSave) {
                     ShellExecuteW(NULL, L"open", L"explorer.exe", (L"/select,\"" + savedPath + L"\"").c_str(), NULL, SW_SHOWNORMAL);
@@ -770,6 +777,9 @@ public:
                 float zoomRatio = userZoom / prevZoom;
                 panOffsetX = (int)(panOffsetX * zoomRatio);
                 panOffsetY = (int)(panOffsetY * zoomRatio);
+
+                int zPct = (int)(userZoom * 100.0f + 0.5f);
+                currentStatusMsg = L"🔍 Perbesaran: " + std::to_wstring(zPct) + L"% (Ctrl+Scroll untuk atur • Ctrl+0 untuk reset)";
 
                 InvalidateRect(hWnd, NULL, FALSE);
                 return 0;
@@ -1268,9 +1278,16 @@ public:
                     int itemH = 28;
                     int idx = (y - (dy + 6)) / itemH;
 
-                    if (idx == 0) config.snipMode = SnipMode::Rectangle;
-                    else if (idx == 1) config.snipMode = SnipMode::Window;
-                    else if (idx == 2) config.snipMode = SnipMode::FullScreen;
+                    if (idx == 0) {
+                        config.snipMode = SnipMode::Rectangle;
+                        currentStatusMsg = L"Mode Cuplikan: Persegi (Pilih area bebas)";
+                    } else if (idx == 1) {
+                        config.snipMode = SnipMode::Window;
+                        currentStatusMsg = L"Mode Cuplikan: Jendela (Otomatis deteksi jendela)";
+                    } else if (idx == 2) {
+                        config.snipMode = SnipMode::FullScreen;
+                        currentStatusMsg = L"Mode Cuplikan: Layar Penuh (Tangkapan instan seluruh layar)";
+                    }
 
                     config.SaveToRegistry();
                     isModeDropdownOpen = false;
@@ -1292,10 +1309,19 @@ public:
                     int itemH = 28;
                     int idx = (y - (dy + 6)) / itemH;
 
-                    if (idx == 0) config.delaySeconds = 0;
-                    else if (idx == 1) config.delaySeconds = 3;
-                    else if (idx == 2) config.delaySeconds = 5;
-                    else if (idx == 3) config.delaySeconds = 10;
+                    if (idx == 0) {
+                        config.delaySeconds = 0;
+                        currentStatusMsg = L"⏱ Jeda Cuplikan: Tanpa Jeda";
+                    } else if (idx == 1) {
+                        config.delaySeconds = 3;
+                        currentStatusMsg = L"⏱ Jeda Cuplikan: 3 detik";
+                    } else if (idx == 2) {
+                        config.delaySeconds = 5;
+                        currentStatusMsg = L"⏱ Jeda Cuplikan: 5 detik";
+                    } else if (idx == 3) {
+                        config.delaySeconds = 10;
+                        currentStatusMsg = L"⏱ Jeda Cuplikan: 10 detik";
+                    }
 
                     config.SaveToRegistry();
                     isDelayDropdownOpen = false;
@@ -1332,6 +1358,7 @@ public:
                             config.currentColor = palette[i];
                             config.currentTool = AnnotationTool::Pen;
                             config.SaveToRegistry();
+                            currentStatusMsg = L"🎨 Warna pena berhasil diubah";
                             InvalidateRect(hWnd, NULL, FALSE);
                             return 0;
                         }
@@ -1353,6 +1380,7 @@ public:
                             config.currentStrokeWidth = strokeSizes[i];
                             config.currentTool = AnnotationTool::Pen;
                             config.SaveToRegistry();
+                            currentStatusMsg = L"📏 Ketebalan pena diubah ke " + std::to_wstring(config.currentStrokeWidth) + L" px";
                             InvalidateRect(hWnd, NULL, FALSE);
                             return 0;
                         }
@@ -1393,18 +1421,22 @@ public:
                             bool wasOpen = isPenDropdownOpen;
                             CloseAllDropdowns();
                             isPenDropdownOpen = !wasOpen;
+                            currentStatusMsg = L"✎ Alat aktif: Pena (" + std::to_wstring(config.currentStrokeWidth) + L"px) - Gambar bebas di kanvas";
                             InvalidateRect(hWnd, NULL, FALSE);
                             return 0;
                         } else if (btn.id == MainWindowButtonId::Tool_Rect) {
                             config.currentTool = AnnotationTool::Rectangle;
                             CloseAllDropdowns();
+                            currentStatusMsg = L"▢ Alat aktif: Persegi - Klik & tarik kursor untuk membuat kotak";
                         } else if (btn.id == MainWindowButtonId::Tool_Circle) {
                             config.currentTool = AnnotationTool::Ellipse;
                             CloseAllDropdowns();
+                            currentStatusMsg = L"○ Alat aktif: Lingkaran - Klik & tarik kursor untuk membuat lingkaran";
                         } else if (btn.id == MainWindowButtonId::Undo) {
                             if (annotationEngine.CanUndo()) {
                                 annotationEngine.Undo();
                                 isModified = true;
+                                currentStatusMsg = L"↺ Membatalkan perubahan (Objek tersisa: " + std::to_wstring(annotationEngine.GetShapeCount()) + L")";
                                 InvalidateRect(hWnd, NULL, FALSE);
                             }
                             return 0;
@@ -1412,6 +1444,7 @@ public:
                             if (annotationEngine.CanRedo()) {
                                 annotationEngine.Redo();
                                 isModified = true;
+                                currentStatusMsg = L"↻ Mengembalikan perubahan (Total objek: " + std::to_wstring(annotationEngine.GetShapeCount()) + L")";
                                 InvalidateRect(hWnd, NULL, FALSE);
                             }
                             return 0;
@@ -1424,7 +1457,9 @@ public:
                             ExecuteSaveAs();
                         } else if (btn.id == MainWindowButtonId::Settings) {
                             CloseAllDropdowns();
+                            currentStatusMsg = L"⚙ Membuka Jendela Pengaturan...";
                             settingsWindow.Show(hwnd, config, [this]() {
+                                currentStatusMsg = L"✓ Pengaturan aplikasi berhasil diperbarui";
                                 InvalidateRect(hwnd, NULL, FALSE);
                             });
                             return 0;
@@ -1472,6 +1507,7 @@ public:
                 isDrawingOnCanvas = false;
                 annotationEngine.CommitActiveShape();
                 isModified = true;
+                currentStatusMsg = L"✓ Objek baru ditambahkan (Total objek: " + std::to_wstring(annotationEngine.GetShapeCount()) + L")";
                 InvalidateRect(hWnd, NULL, FALSE);
             }
             return 0;
@@ -1499,6 +1535,7 @@ public:
                 if (annotationEngine.CanUndo()) {
                     annotationEngine.Undo();
                     isModified = true;
+                    currentStatusMsg = L"↺ Membatalkan perubahan (Objek tersisa: " + std::to_wstring(annotationEngine.GetShapeCount()) + L")";
                     InvalidateRect(hWnd, NULL, FALSE);
                 }
                 return 0;
@@ -1506,6 +1543,7 @@ public:
                 if (annotationEngine.CanRedo()) {
                     annotationEngine.Redo();
                     isModified = true;
+                    currentStatusMsg = L"↻ Mengembalikan perubahan (Total objek: " + std::to_wstring(annotationEngine.GetShapeCount()) + L")";
                     InvalidateRect(hWnd, NULL, FALSE);
                 }
                 return 0;
@@ -1514,6 +1552,7 @@ public:
                 userZoom = 1.0f;
                 panOffsetX = 0;
                 panOffsetY = 0;
+                currentStatusMsg = L"🔍 Perbesaran direset ke 100% (Ukuran normal)";
                 InvalidateRect(hWnd, NULL, FALSE);
                 return 0;
             }
