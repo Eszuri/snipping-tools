@@ -23,25 +23,33 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Setup MinGW & Inno Setup
+      - name: Setup Inno Setup
+        shell: pwsh
         run: |
           choco install innosetup -y --no-progress
-          echo "C:\Program Files (x86)\Inno Setup 6" >> $env:GITHUB_PATH
+          $isccPath = "C:\Program Files (x86)\Inno Setup 6"
+          if (Test-Path $isccPath) {
+              echo "$isccPath" >> $env:GITHUB_PATH
+          }
 
       - name: Build Portable Executable
+        shell: cmd
         run: |
-          mkdir -p bin obj dist
-          cmd /c build.bat
+          if not exist bin mkdir bin
+          if not exist obj mkdir obj
+          if not exist dist mkdir dist
+          call build.bat
 
       - name: Package Standalone Portable (ZIP)
         id: package_portable
+        shell: pwsh
         run: |
           $TAG = if ("${{ github.ref_type }}" -eq "tag") { "${{ github.ref_name }}" } else { "${{ github.event.inputs.version }}" }
           if (-not $TAG) { $TAG = "v1.0.0" }
           
           # Create staging folder for portable release
           $portableDir = "dist/SnippingTools-Portable"
-          mkdir -p $portableDir
+          New-Item -ItemType Directory -Force -Path $portableDir | Out-Null
           Copy-Item "bin/NativeSnippingTool.exe" -Destination "$portableDir/SnippingTools.exe"
           Copy-Item "resources/app.ico" -Destination "$portableDir/"
           Copy-Item "README.md" -Destination "$portableDir/"
@@ -53,8 +61,14 @@ jobs:
 
       - name: Build Installer (Inno Setup)
         id: package_installer
+        shell: pwsh
         run: |
-          iscc installer/installer.iss
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          if (Test-Path $iscc) {
+              & $iscc installer/installer.iss
+          } else {
+              iscc installer/installer.iss
+          }
           $installerFile = Get-ChildItem -Path "dist" -Filter "SnippingTools-Setup-*.exe" | Select-Object -First 1
           echo "INSTALLER_EXE=$($installerFile.FullName)" >> $env:GITHUB_ENV
 
