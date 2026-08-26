@@ -42,10 +42,24 @@ private:
 
     std::unique_ptr<Gdiplus::Bitmap> capturedBmp;
     bool hasImage = false;
+    bool isModified = false;
     std::wstring currentStatusMsg = L"";
 
     std::vector<UiButton> topButtons;
     int hoveredButtonIdx = -1;
+
+    bool IsButtonEnabled(MainWindowButtonId id) const {
+        if (id == MainWindowButtonId::Undo) {
+            return annotationEngine.CanUndo();
+        }
+        if (id == MainWindowButtonId::Redo) {
+            return annotationEngine.CanRedo();
+        }
+        if (id == MainWindowButtonId::Save) {
+            return hasImage && isModified;
+        }
+        return true;
+    }
 
     // Zoom & Pan Navigation Engine
     float userZoom = 1.0f; // 0.25x to 8.0x
@@ -310,6 +324,7 @@ private:
                 // On Capture Complete: Open result in MainWindow
                 capturedBmp = std::move(bmp);
                 hasImage = (capturedBmp != nullptr);
+                isModified = hasImage; // Newly captured image can be saved
                 annotationEngine.Clear();
                 currentStatusMsg = L"";
 
@@ -341,18 +356,20 @@ private:
         auto finalBmp = RenderFinalImage();
         if (finalBmp) {
             ClipboardHelper::CopyBitmapToClipboard(finalBmp.get(), hwnd);
-            currentStatusMsg = L"✓ Gambar berhasil disalin ke Clipboard (Ctrl+C).";
+            currentStatusMsg = L"✓ Gambar berhasil disalin ke Papan Klip (Ctrl+C).";
             InvalidateRect(hwnd, NULL, FALSE);
         }
     }
 
     void ExecuteSave() {
+        if (!hasImage || !isModified) return;
         auto finalBmp = RenderFinalImage();
         if (finalBmp) {
             std::wstring savedPath;
             if (FileHelper::QuickSave(finalBmp.get(), config, savedPath)) {
                 ClipboardHelper::CopyBitmapToClipboard(finalBmp.get(), hwnd);
-                currentStatusMsg = L"✓ Tersimpan di: " + savedPath + L" (disalin ke Clipboard)";
+                currentStatusMsg = L"✓ Tersimpan di: " + savedPath + L" (disalin ke Papan Klip)";
+                isModified = false; // Reset modification flag on save
                 if (config.openExplorerAfterSave) {
                     ShellExecuteW(NULL, L"open", L"explorer.exe", (L"/select,\"" + savedPath + L"\"").c_str(), NULL, SW_SHOWNORMAL);
                 }
@@ -369,7 +386,8 @@ private:
             std::wstring savedPath;
             if (FileHelper::PromptAndSave(finalBmp.get(), config, hwnd, savedPath)) {
                 ClipboardHelper::CopyBitmapToClipboard(finalBmp.get(), hwnd);
-                currentStatusMsg = L"✓ Tersimpan sebagai: " + savedPath + L" (disalin ke Clipboard)";
+                currentStatusMsg = L"✓ Tersimpan sebagai: " + savedPath + L" (disalin ke Papan Klip)";
+                isModified = false; // Reset modification flag on save
                 if (config.openExplorerAfterSave) {
                     ShellExecuteW(NULL, L"open", L"explorer.exe", (L"/select,\"" + savedPath + L"\"").c_str(), NULL, SW_SHOWNORMAL);
                 }
@@ -885,31 +903,35 @@ public:
                     g.DrawString(btn.label.c_str(), -1, &fontText, textRect, &sfLeft, &textColor);
                 } else if (btn.id == MainWindowButtonId::Undo || btn.id == MainWindowButtonId::Redo) {
                     // Urungkan / Kembalikan with Icon and Text
-                    Gdiplus::SolidBrush actBg(isHovered ? Gdiplus::Color(255, 48, 52, 60) : Gdiplus::Color(255, 38, 40, 46));
+                    bool isEnabled = IsButtonEnabled(btn.id);
+
+                    Gdiplus::SolidBrush actBg(!isEnabled ? Gdiplus::Color(255, 26, 27, 31) : (isHovered ? Gdiplus::Color(255, 48, 52, 60) : Gdiplus::Color(255, 38, 40, 46)));
                     g.FillRectangle(&actBg, btnRect);
 
-                    Gdiplus::Pen actBorder(Gdiplus::Color(255, 58, 62, 70), 1.0f);
+                    Gdiplus::Pen actBorder(!isEnabled ? Gdiplus::Color(255, 38, 40, 46) : Gdiplus::Color(255, 58, 62, 70), 1.0f);
                     g.DrawRectangle(&actBorder, (INT)btn.bounds.left, (INT)btn.bounds.top, (INT)bw, (INT)bh);
 
-                    Gdiplus::Color iconColor = isHovered ? Gdiplus::Color(255, 255, 255, 255) : Gdiplus::Color(255, 220, 225, 230);
+                    Gdiplus::Color iconColor = !isEnabled ? Gdiplus::Color(255, 75, 80, 90) : (isHovered ? Gdiplus::Color(255, 255, 255, 255) : Gdiplus::Color(255, 220, 225, 230));
                     Gdiplus::RectF iconRect(btnRect.X + 8.0f, btnRect.Y, 16.0f, btnRect.Height);
-                    DrawVectorIcon(g, btn.id, iconRect, iconColor, isHovered, false);
+                    DrawVectorIcon(g, btn.id, iconRect, iconColor, isHovered && isEnabled, false);
 
                     Gdiplus::SolidBrush textBrush(iconColor);
                     Gdiplus::RectF textRect(btnRect.X + 28.0f, btnRect.Y, btnRect.Width - 28.0f, btnRect.Height);
                     g.DrawString(btn.label.c_str(), -1, &fontTextBold, textRect, &sfLeft, &textBrush);
                 } else if (btn.id == MainWindowButtonId::Save || btn.id == MainWindowButtonId::SaveAs) {
                     // Action Buttons (Simpan / Simpan Sebagai)
-                    Gdiplus::SolidBrush actBg(isHovered ? Gdiplus::Color(255, 48, 52, 60) : Gdiplus::Color(255, 38, 40, 46));
+                    bool isEnabled = IsButtonEnabled(btn.id);
+
+                    Gdiplus::SolidBrush actBg(!isEnabled ? Gdiplus::Color(255, 26, 27, 31) : (isHovered ? Gdiplus::Color(255, 48, 52, 60) : Gdiplus::Color(255, 38, 40, 46)));
                     g.FillRectangle(&actBg, btnRect);
 
-                    Gdiplus::Pen actBorder(Gdiplus::Color(255, 58, 62, 70), 1.0f);
+                    Gdiplus::Pen actBorder(!isEnabled ? Gdiplus::Color(255, 38, 40, 46) : Gdiplus::Color(255, 58, 62, 70), 1.0f);
                     g.DrawRectangle(&actBorder, (INT)btn.bounds.left, (INT)btn.bounds.top, (INT)bw, (INT)bh);
 
                     // Mini Floppy disk vector icon
                     float ficx = btnRect.X + 16.0f;
                     float ficy = btnRect.Y + btnRect.Height / 2.0f;
-                    Gdiplus::Color diskColor = (btn.id == MainWindowButtonId::Save) ? Gdiplus::Color(255, 60, 170, 255) : Gdiplus::Color(255, 220, 225, 230);
+                    Gdiplus::Color diskColor = !isEnabled ? Gdiplus::Color(255, 75, 80, 90) : ((btn.id == MainWindowButtonId::Save) ? Gdiplus::Color(255, 60, 170, 255) : Gdiplus::Color(255, 220, 225, 230));
                     Gdiplus::Pen diskPen(diskColor, 1.4f);
                     g.DrawRectangle(&diskPen, (INT)(ficx - 6), (INT)(ficy - 6), 12, 12);
                     g.DrawRectangle(&diskPen, (INT)(ficx - 3), (INT)(ficy - 6), 6, 4);
@@ -1168,7 +1190,7 @@ public:
                 return 0;
             }
 
-            // Check button hover
+            // Check button hover (only if enabled)
             int prevHover = hoveredButtonIdx;
             hoveredButtonIdx = -1;
 
@@ -1177,7 +1199,9 @@ public:
                     const auto& btn = topButtons[i];
                     if (btn.isSeparator) continue;
                     if (x >= btn.bounds.left && x <= btn.bounds.right && y >= btn.bounds.top && y <= btn.bounds.bottom) {
-                        hoveredButtonIdx = (int)i;
+                        if (IsButtonEnabled(btn.id)) {
+                            hoveredButtonIdx = (int)i;
+                        }
                         break;
                     }
                 }
@@ -1321,6 +1345,7 @@ public:
                     int startSizeY = sepY + 5;
 
                     for (size_t i = 0; i < strokeSizes.size(); ++i) {
+                        int sz = strokeSizes[i];
                         int bx = startSizeX + (int)i * (sizeBtnW + sizeGap);
                         int by = startSizeY;
 
@@ -1345,6 +1370,10 @@ public:
                 for (const auto& btn : topButtons) {
                     if (btn.isSeparator) continue;
                     if (x >= btn.bounds.left && x <= btn.bounds.right && y >= btn.bounds.top && y <= btn.bounds.bottom) {
+                        if (!IsButtonEnabled(btn.id)) {
+                            return 0;
+                        }
+
                         if (btn.id == MainWindowButtonId::NewSnip) {
                             StartNewSnip();
                         } else if (btn.id == MainWindowButtonId::ToggleMode) {
@@ -1373,13 +1402,24 @@ public:
                             config.currentTool = AnnotationTool::Ellipse;
                             CloseAllDropdowns();
                         } else if (btn.id == MainWindowButtonId::Undo) {
-                            annotationEngine.Undo();
-                            InvalidateRect(hWnd, NULL, FALSE);
+                            if (annotationEngine.CanUndo()) {
+                                annotationEngine.Undo();
+                                isModified = true;
+                                InvalidateRect(hWnd, NULL, FALSE);
+                            }
+                            return 0;
                         } else if (btn.id == MainWindowButtonId::Redo) {
-                            annotationEngine.Redo();
-                            InvalidateRect(hWnd, NULL, FALSE);
+                            if (annotationEngine.CanRedo()) {
+                                annotationEngine.Redo();
+                                isModified = true;
+                                InvalidateRect(hWnd, NULL, FALSE);
+                            }
+                            return 0;
                         } else if (btn.id == MainWindowButtonId::Save) {
-                            ExecuteSave();
+                            if (hasImage && isModified) {
+                                ExecuteSave();
+                            }
+                            return 0;
                         } else if (btn.id == MainWindowButtonId::SaveAs) {
                             ExecuteSaveAs();
                         } else if (btn.id == MainWindowButtonId::Settings) {
@@ -1431,6 +1471,7 @@ public:
                 ReleaseCapture();
                 isDrawingOnCanvas = false;
                 annotationEngine.CommitActiveShape();
+                isModified = true;
                 InvalidateRect(hWnd, NULL, FALSE);
             }
             return 0;
@@ -1450,15 +1491,23 @@ public:
                 ExecuteSaveAs();
                 return 0;
             } else if (wParam == 'S' && isCtrl) {
-                ExecuteSave();
+                if (hasImage && isModified) {
+                    ExecuteSave();
+                }
                 return 0;
             } else if (wParam == 'Z' && isCtrl) {
-                annotationEngine.Undo();
-                InvalidateRect(hWnd, NULL, FALSE);
+                if (annotationEngine.CanUndo()) {
+                    annotationEngine.Undo();
+                    isModified = true;
+                    InvalidateRect(hWnd, NULL, FALSE);
+                }
                 return 0;
             } else if (wParam == 'Y' && isCtrl) {
-                annotationEngine.Redo();
-                InvalidateRect(hWnd, NULL, FALSE);
+                if (annotationEngine.CanRedo()) {
+                    annotationEngine.Redo();
+                    isModified = true;
+                    InvalidateRect(hWnd, NULL, FALSE);
+                }
                 return 0;
             } else if (wParam == '0' && isCtrl) {
                 // Reset zoom and pan
