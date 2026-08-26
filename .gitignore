@@ -1,0 +1,53 @@
+# ==========================================
+# Snipping Tools - Git Ignore Rules
+# ==========================================
+
+# 1. Build and Output Directories
+/bin/
+/obj/
+/build/
+/out/
+
+# 2. Executables and Compiled Objects
+*.exe
+*.o
+*.obj
+*.res
+*.dll
+*.lib
+*.a
+*.so
+*.dylib
+
+# 3. Debug and Symbol Files
+*.pdb
+*.ilk
+*.idb
+*.d
+*.log
+*.tmp
+
+# 4. CMake Generated Files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.ninja
+.ninja_*
+
+# 5. IDE and Editor Settings
+.vscode/
+.vs/
+*.vcxproj*
+*.sln.docstates
+*.user
+*.suo
+.idea/
+.cache/
+
+# 6. Operating System Files
+Thumbs.db
+ehthumbs.db
+desktop.ini
+$RECYCLE.BIN/
+.DS_Store

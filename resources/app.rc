@@ -1,0 +1,7 @@
+#include <windows.h>
+
+// 101 is the main application icon (IDI_APP_ICON)
+101 ICON "app.ico"
+
+// 1 is the manifest resource ID, 24 is RT_MANIFEST
+1 24 "app.manifest"
