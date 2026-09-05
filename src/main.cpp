@@ -37,6 +37,9 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
         return 1;
     }
 
+    // Single-instance named mutex for app running / update detection
+    HANDLE hAppMutex = CreateMutexW(NULL, FALSE, L"NativeSnippingTool_App_Mutex_v1");
+
     // 3. Create Main Application Window
     MainWindow mainWindow;
     if (!mainWindow.Create()) {
@@ -52,6 +55,9 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     }
 
     // 5. Clean up
+    if (hAppMutex) {
+        CloseHandle(hAppMutex);
+    }
     Gdiplus::GdiplusShutdown(gdiplusToken);
     return (int)msg.wParam;
 }
