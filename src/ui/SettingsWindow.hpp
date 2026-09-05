@@ -18,9 +18,6 @@ private:
     // Interactive button rects
     RECT btnChangeFolder = { 0, 0, 0, 0 };
     RECT btnOpenFolder = { 0, 0, 0, 0 };
-    RECT btnFmtPng = { 0, 0, 0, 0 };
-    RECT btnFmtJpg = { 0, 0, 0, 0 };
-    RECT btnFmtBmp = { 0, 0, 0, 0 };
     RECT btnNameTimestamp = { 0, 0, 0, 0 };
     RECT btnNameStatic = { 0, 0, 0, 0 };
     RECT btnToggleAutoCopy = { 0, 0, 0, 0 };
@@ -91,7 +88,7 @@ public:
         }
 
         int winW = 590;
-        int winH = 570;
+        int winH = 520;
 
         RECT parentRc;
         GetWindowRect(parent, &parentRc);
@@ -210,7 +207,7 @@ public:
 
             // ================= SECTION 1: PENYIMPANAN =================
             int curY = 54;
-            g.DrawString(L"1. Lokasi & Format Penyimpanan", -1, &fontSection, Gdiplus::PointF(24.0f, (float)curY), &whiteBrush);
+            g.DrawString(L"1. Lokasi Penyimpanan (Format: PNG Lossless)", -1, &fontSection, Gdiplus::PointF(24.0f, (float)curY), &whiteBrush);
 
             curY += 22;
             g.DrawString(L"Folder Penyimpanan Default:", -1, &fontNormal, Gdiplus::PointF(24.0f, (float)curY), &grayBrush);
@@ -247,28 +244,6 @@ public:
             Gdiplus::RectF btn2Rect(184.0f, (float)curY, 160.0f, 28.0f);
             g.DrawString(L"Buka di Explorer", -1, &fontBold, btn2Rect, &sfCenter, &textBrush);
 
-            // Format Selection Pills (PNG / JPG / BMP)
-            curY += 36;
-            g.DrawString(L"Format Gambar:", -1, &fontNormal, Gdiplus::PointF(24.0f, (float)(curY + 4)), &grayBrush);
-
-            btnFmtPng = { 130, (LONG)curY, 190, (LONG)(curY + 26) };
-            btnFmtJpg = { 198, (LONG)curY, 258, (LONG)(curY + 26) };
-            btnFmtBmp = { 266, (LONG)curY, 326, (LONG)(curY + 26) };
-
-            auto drawFmtPill = [&](const RECT& rc, const WCHAR* label, bool isSelected, int btnIdx) {
-                int pw = rc.right - rc.left;
-                int ph = rc.bottom - rc.top;
-                Gdiplus::SolidBrush pbg(isSelected ? Gdiplus::Color(255, 0, 120, 215) : (hoveredBtn == btnIdx ? Gdiplus::Color(255, 52, 56, 64) : Gdiplus::Color(255, 38, 40, 46)));
-                g.FillRectangle(&pbg, (INT)rc.left, (INT)rc.top, pw, ph);
-                g.DrawRectangle(&borderPen, (INT)rc.left, (INT)rc.top, pw, ph);
-                Gdiplus::RectF prect((float)rc.left, (float)rc.top, (float)pw, (float)ph);
-                g.DrawString(label, -1, &fontBold, prect, &sfCenter, isSelected ? &whiteBrush : &textBrush);
-            };
-
-            drawFmtPill(btnFmtPng, L"PNG", pConfig && pConfig->defaultSaveFormat == L"png", 3);
-            drawFmtPill(btnFmtJpg, L"JPG", pConfig && pConfig->defaultSaveFormat == L"jpg", 4);
-            drawFmtPill(btnFmtBmp, L"BMP", pConfig && pConfig->defaultSaveFormat == L"bmp", 5);
-
             // ================= SECTION 2: METODE PENAMAAN FILE =================
             curY += 38;
             g.DrawLine(&borderPen, 24, curY, width - 24, curY);
@@ -304,9 +279,10 @@ public:
             // Static Name Input Row
             curY += 24;
             g.DrawString(L"Nama Berkas Default:", -1, &fontSmall, Gdiplus::PointF(48.0f, (float)(curY + 4)), &grayBrush);
-
-            std::wstring previewExt = L"." + (pConfig ? pConfig->defaultSaveFormat : L"png");
-            g.DrawString(previewExt.c_str(), -1, &fontBold, Gdiplus::PointF(418.0f, (float)(curY + 4)), &whiteBrush);
+            if (hwndEdit) {
+                SetWindowPos(hwndEdit, NULL, 190, curY, 220, 26, SWP_NOZORDER);
+            }
+            g.DrawString(L".png", -1, &fontBold, Gdiplus::PointF(418.0f, (float)(curY + 4)), &whiteBrush);
 
             // ================= SECTION 3: PERILAKU APLIKASI =================
             curY += 38;
@@ -318,7 +294,7 @@ public:
             // Checkbox: Auto-Copy
             curY += 22;
             btnToggleAutoCopy = { 24, (LONG)curY, (LONG)(width - 24), (LONG)(curY + 22) };
-            bool isAutoCopy = pConfig && pConfig->autoCopyOnCapture;
+            bool isAutoCopy = pConfig && pConfig->autoCopyOnSave;
             Gdiplus::SolidBrush checkBrush(isAutoCopy ? Gdiplus::Color(255, 0, 120, 215) : Gdiplus::Color(255, 50, 54, 60));
             g.FillRectangle(&checkBrush, 24, curY + 2, 16, 16);
             g.DrawRectangle(&borderPen, 24, curY + 2, 16, 16);
@@ -327,7 +303,7 @@ public:
                 g.DrawLine(&checkPen, 27, curY + 10, 31, curY + 14);
                 g.DrawLine(&checkPen, 31, curY + 14, 37, curY + 5);
             }
-            g.DrawString(L"Otomatis salin gambar ke Papan Klip setelah menyimpan gambar", -1, &fontNormal, Gdiplus::PointF(48.0f, (float)(curY + 2)), &textBrush);
+            g.DrawString(L"Otomatis salin gambar ke Papan Klip setelah menyimpan gambar (Save / Save As)", -1, &fontNormal, Gdiplus::PointF(48.0f, (float)(curY + 2)), &textBrush);
 
             // Checkbox: Magnifier
             curY += 26;
@@ -392,9 +368,6 @@ public:
 
             if (inRc(btnChangeFolder)) hoveredBtn = 1;
             else if (inRc(btnOpenFolder)) hoveredBtn = 2;
-            else if (inRc(btnFmtPng)) hoveredBtn = 3;
-            else if (inRc(btnFmtJpg)) hoveredBtn = 4;
-            else if (inRc(btnFmtBmp)) hoveredBtn = 5;
             else if (inRc(btnClose)) hoveredBtn = 8;
 
             if (prevHover != hoveredBtn) {
@@ -425,15 +398,6 @@ public:
                     ShellExecuteW(NULL, L"open", pConfig->GetEffectiveSaveDir().c_str(), NULL, NULL, SW_SHOWNORMAL);
                 }
                 return 0;
-            } else if (inRc(btnFmtPng)) {
-                if (pConfig) { pConfig->defaultSaveFormat = L"png"; NotifyChange(); }
-                return 0;
-            } else if (inRc(btnFmtJpg)) {
-                if (pConfig) { pConfig->defaultSaveFormat = L"jpg"; NotifyChange(); }
-                return 0;
-            } else if (inRc(btnFmtBmp)) {
-                if (pConfig) { pConfig->defaultSaveFormat = L"bmp"; NotifyChange(); }
-                return 0;
             } else if (inRc(btnNameTimestamp)) {
                 if (pConfig) {
                     pConfig->namingMode = NamingMode::Timestamp;
@@ -452,7 +416,7 @@ public:
                 }
                 return 0;
             } else if (inRc(btnToggleAutoCopy)) {
-                if (pConfig) { pConfig->autoCopyOnCapture = !pConfig->autoCopyOnCapture; NotifyChange(); }
+                if (pConfig) { pConfig->autoCopyOnSave = !pConfig->autoCopyOnSave; NotifyChange(); }
                 return 0;
             } else if (inRc(btnToggleMagnifier)) {
                 if (pConfig) { pConfig->showMagnifier = !pConfig->showMagnifier; NotifyChange(); }

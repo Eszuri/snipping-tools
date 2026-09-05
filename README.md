@@ -31,7 +31,7 @@ Saat membuka aplikasi, jendela utama langsung muncul dengan antarmuka yang bersi
   * **Undo (`Ctrl+Z`) / Redo (`Ctrl+Y`) / Clear (`🗑`)**: Riwayat pengeditan tanpa batas.
 * **Aksi Cepat**:
   * **Copy (`Ctrl+C`)**: Menyalin gambar hasil anotasi langsung ke Clipboard.
-  * **Save As (`Ctrl+S`)**: Menyimpan ke format PNG, JPEG, atau BMP.
+  * **Save As (`Ctrl+S`)**: Menyimpan ke format PNG (lossless tanpa kompresi).
   * **Pin to Screen (`F2`)**: Membuat jendela potongan melayang (*always-on-top*).
 
 ---
@@ -42,7 +42,7 @@ Saat membuka aplikasi, jendela utama langsung muncul dengan antarmuka yang bersi
 | :--- | :--- |
 | **`Ctrl + N`** / **`PrtScn`** | Mulai ambil Snip baru |
 | **`Ctrl + C`** | Salin gambar ke Clipboard |
-| **`Ctrl + S`** | Simpan gambar ke file (PNG/JPG/BMP) |
+| **`Ctrl + S`** | Simpan gambar ke file PNG |
 | **`Ctrl + Z`** | Undo anotasi terakhir |
 | **`Ctrl + Y`** | Redo anotasi |
 | **`F2`** | Pin gambar melayang di atas layar |

@@ -153,9 +153,11 @@ public:
             Gdiplus::Graphics g(hdcMem);
             g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
 
-            // 1. Base captured screen
+            // 1. Base captured screen (1:1 pixel-perfect, zero resampling blur)
             if (backgroundBmp) {
-                g.DrawImage(backgroundBmp.get(), 0, 0, screenBounds.width, screenBounds.height);
+                g.SetInterpolationMode(Gdiplus::InterpolationModeNearestNeighbor);
+                g.SetPixelOffsetMode(Gdiplus::PixelOffsetModeHalf);
+                g.DrawImage(backgroundBmp.get(), Gdiplus::Rect(0, 0, screenBounds.width, screenBounds.height), 0, 0, screenBounds.width, screenBounds.height, Gdiplus::UnitPixel);
             }
 
             // 2. Dim mask

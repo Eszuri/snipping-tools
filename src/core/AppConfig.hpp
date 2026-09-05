@@ -31,11 +31,10 @@ struct AppConfig {
     AnnotationTool currentTool = AnnotationTool::Pen;
     SnipMode snipMode = SnipMode::Rectangle;
     int delaySeconds = 0; // 0, 3, 5, 10
-    bool autoCopyOnCapture = true;
+    bool autoCopyOnSave = true; // Copy to clipboard only after saving (Save / Save As)
     bool showMagnifier = true;
     bool openExplorerAfterSave = false;
     int magnifierZoom = 4;
-    std::wstring defaultSaveFormat = L"png";
     std::wstring customSaveDir = L""; // User custom save directory
 
     NamingMode namingMode = NamingMode::Timestamp;
@@ -77,7 +76,7 @@ struct AppConfig {
             }
             dwSize = sizeof(DWORD);
             if (RegQueryValueExW(hKey, L"AutoCopy", NULL, &dwType, (LPBYTE)&dwVal, &dwSize) == ERROR_SUCCESS) {
-                autoCopyOnCapture = (dwVal != 0);
+                autoCopyOnSave = (dwVal != 0);
             }
             dwSize = sizeof(DWORD);
             if (RegQueryValueExW(hKey, L"ShowMagnifier", NULL, &dwType, (LPBYTE)&dwVal, &dwSize) == ERROR_SUCCESS) {
@@ -98,11 +97,6 @@ struct AppConfig {
             strSize = sizeof(szBuffer);
             if (RegQueryValueExW(hKey, L"StaticFilename", NULL, &dwType, (LPBYTE)szBuffer, &strSize) == ERROR_SUCCESS) {
                 staticFilename = szBuffer;
-            }
-
-            strSize = sizeof(szBuffer);
-            if (RegQueryValueExW(hKey, L"DefaultFormat", NULL, &dwType, (LPBYTE)szBuffer, &strSize) == ERROR_SUCCESS) {
-                defaultSaveFormat = szBuffer;
             }
 
             RegCloseKey(hKey);
@@ -127,7 +121,7 @@ struct AppConfig {
             dwVal = (DWORD)namingMode;
             RegSetValueExW(hKey, L"NamingMode", 0, REG_DWORD, (const BYTE*)&dwVal, sizeof(DWORD));
 
-            dwVal = autoCopyOnCapture ? 1 : 0;
+            dwVal = autoCopyOnSave ? 1 : 0;
             RegSetValueExW(hKey, L"AutoCopy", 0, REG_DWORD, (const BYTE*)&dwVal, sizeof(DWORD));
 
             dwVal = showMagnifier ? 1 : 0;
@@ -146,9 +140,7 @@ struct AppConfig {
                 RegSetValueExW(hKey, L"StaticFilename", 0, REG_SZ, (const BYTE*)staticFilename.c_str(), (DWORD)((staticFilename.size() + 1) * sizeof(WCHAR)));
             }
 
-            if (!defaultSaveFormat.empty()) {
-                RegSetValueExW(hKey, L"DefaultFormat", 0, REG_SZ, (const BYTE*)defaultSaveFormat.c_str(), (DWORD)((defaultSaveFormat.size() + 1) * sizeof(WCHAR)));
-            }
+            RegDeleteValueW(hKey, L"DefaultFormat");
 
             RegCloseKey(hKey);
         }

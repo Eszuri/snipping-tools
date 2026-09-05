@@ -26,6 +26,47 @@ public:
         return -1;
     }
 
+    static SIZE_T GetPngSizeBytes(Gdiplus::Bitmap* bitmap) {
+        if (!bitmap) return 0;
+        IStream* pStream = NULL;
+        SIZE_T pngSize = 0;
+        if (CreateStreamOnHGlobal(NULL, TRUE, &pStream) == S_OK) {
+            CLSID pngClsid;
+            if (GetEncoderClsid(L"image/png", &pngClsid) != -1) {
+                if (bitmap->Save(pStream, &pngClsid, NULL) == Gdiplus::Ok) {
+                    STATSTG stat;
+                    if (pStream->Stat(&stat, STATFLAG_NONAME) == S_OK) {
+                        pngSize = (SIZE_T)stat.cbSize.QuadPart;
+                    }
+                }
+            }
+            pStream->Release();
+        }
+        return pngSize;
+    }
+
+    static std::wstring FormatFileSize(SIZE_T bytes) {
+        wchar_t buf[64];
+        if (bytes < 1024) {
+            swprintf_s(buf, L"%zu B", bytes);
+        } else if (bytes < 1024 * 1024) {
+            double kb = (double)bytes / 1024.0;
+            if (kb >= 100.0) {
+                swprintf_s(buf, L"%.0f KB", kb);
+            } else {
+                swprintf_s(buf, L"%.1f KB", kb);
+            }
+        } else {
+            double mb = (double)bytes / (1024.0 * 1024.0);
+            if (mb >= 100.0) {
+                swprintf_s(buf, L"%.0f MB", mb);
+            } else {
+                swprintf_s(buf, L"%.2f MB", mb);
+            }
+        }
+        return buf;
+    }
+
     static std::wstring GenerateTimestampFilename(const std::wstring& ext = L"png") {
         auto now = std::time(nullptr);
         std::tm tm;
@@ -39,34 +80,28 @@ public:
     }
 
     static std::wstring GenerateFilename(const AppConfig& config) {
-        std::wstring ext = config.defaultSaveFormat.empty() ? L"png" : config.defaultSaveFormat;
         if (config.namingMode == NamingMode::Static) {
             std::wstring base = config.staticFilename.empty() ? L"CuplikanLayar" : config.staticFilename;
-            return base + L"." + ext;
+            return base + L".png";
         } else {
-            return GenerateTimestampFilename(ext);
+            return GenerateTimestampFilename(L"png");
         }
     }
 
     static bool SaveBitmapToFile(Gdiplus::Bitmap* bitmap, const std::wstring& filePath) {
         if (!bitmap) return false;
 
-        const WCHAR* mimeType = L"image/png";
-        if (filePath.size() >= 4) {
-            std::wstring ext = filePath.substr(filePath.size() - 4);
-            if (_wcsicmp(ext.c_str(), L".jpg") == 0 || _wcsicmp(ext.c_str(), L"jpeg") == 0) {
-                mimeType = L"image/jpeg";
-            } else if (_wcsicmp(ext.c_str(), L".bmp") == 0) {
-                mimeType = L"image/bmp";
-            }
+        std::wstring actualPath = filePath;
+        if (actualPath.size() < 4 || _wcsicmp(actualPath.substr(actualPath.size() - 4).c_str(), L".png") != 0) {
+            actualPath += L".png";
         }
 
         CLSID encoderClsid;
-        if (GetEncoderClsid(mimeType, &encoderClsid) < 0) {
+        if (GetEncoderClsid(L"image/png", &encoderClsid) < 0) {
             return false;
         }
 
-        return bitmap->Save(filePath.c_str(), &encoderClsid, NULL) == Gdiplus::Ok;
+        return bitmap->Save(actualPath.c_str(), &encoderClsid, NULL) == Gdiplus::Ok;
     }
 
     // 1. Direct Quick Save to Effective Directory using configured naming mode
@@ -90,18 +125,21 @@ public:
         OPENFILENAMEW ofn = { 0 };
         ofn.lStructSize = sizeof(OPENFILENAMEW);
         ofn.hwndOwner = hwndOwner;
-        ofn.lpstrFilter = L"Gambar PNG (*.png)\0*.png\0Gambar JPEG (*.jpg)\0*.jpg\0Gambar Bitmap (*.bmp)\0*.bmp\0Semua Berkas (*.*)\0*.*\0";
+        ofn.lpstrFilter = L"Gambar PNG (*.png)\0*.png\0";
         ofn.lpstrFile = szFileName;
         ofn.nMaxFile = MAX_PATH;
         ofn.Flags = OFN_OVERWRITEPROMPT | OFN_PATHMUSTEXIST;
-        ofn.lpstrDefExt = config.defaultSaveFormat.c_str();
+        ofn.lpstrDefExt = L"png";
 
         std::wstring initialDir = config.GetEffectiveSaveDir();
         ofn.lpstrInitialDir = initialDir.c_str();
 
         if (GetSaveFileNameW(&ofn)) {
             outSavedPath = szFileName;
-            return SaveBitmapToFile(bitmap, szFileName);
+            if (outSavedPath.size() < 4 || _wcsicmp(outSavedPath.substr(outSavedPath.size() - 4).c_str(), L".png") != 0) {
+                outSavedPath += L".png";
+            }
+            return SaveBitmapToFile(bitmap, outSavedPath);
         }
         return false;
     }

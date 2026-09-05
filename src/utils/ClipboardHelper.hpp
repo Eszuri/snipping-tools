@@ -19,6 +19,10 @@ public:
             return false;
         }
 
+        // Calculate Pixels Per Meter matching the exact image DPI
+        LONG ppmX = (LONG)(bitmap->GetHorizontalResolution() * (1000.0f / 25.4f) + 0.5f);
+        LONG ppmY = (LONG)(bitmap->GetVerticalResolution() * (1000.0f / 25.4f) + 0.5f);
+
         // =========================================================================
         // 1. Standard CF_DIB (Universal compatibility for Microsoft Word, Office, Paint, etc.)
         // Standard CF_DIB uses standard bottom-up BITMAPINFOHEADER and BI_RGB
@@ -36,6 +40,8 @@ public:
                 pBi->biBitCount = 32;
                 pBi->biCompression = BI_RGB;
                 pBi->biSizeImage = width * height * 4;
+                pBi->biXPelsPerMeter = ppmX;
+                pBi->biYPelsPerMeter = ppmY;
 
                 BYTE* pPixels = pData + sizeof(BITMAPINFOHEADER);
                 // Copy scanlines in bottom-up order
@@ -67,6 +73,8 @@ public:
                 pBi5->bV5RedMask   = 0x00FF0000;
                 pBi5->bV5GreenMask = 0x0000FF00;
                 pBi5->bV5BlueMask  = 0x000000FF;
+                pBi5->bV5XPelsPerMeter = ppmX;
+                pBi5->bV5YPelsPerMeter = ppmY;
 
                 BYTE* pPixels = pData + sizeof(BITMAPV5HEADER);
                 for (UINT y = 0; y < height; ++y) {
@@ -80,26 +88,43 @@ public:
 
         // =========================================================================
         // 3. PNG Format (For modern apps like Telegram, Discord, Slack, Browsers)
+        // Uses the exact same lossless PNG encoding as Save / Save As
         // =========================================================================
-        static UINT pngFormat = RegisterClipboardFormatW(L"PNG");
+        static UINT cfPng = RegisterClipboardFormatW(L"PNG");
+        static UINT cfImagePng = RegisterClipboardFormatW(L"image/png");
         HGLOBAL hPng = NULL;
+        HGLOBAL hImagePng = NULL;
         IStream* pStream = NULL;
         if (CreateStreamOnHGlobal(NULL, TRUE, &pStream) == S_OK) {
             CLSID pngClsid;
             if (FileHelper::GetEncoderClsid(L"image/png", &pngClsid) != -1) {
                 if (bitmap->Save(pStream, &pngClsid, NULL) == Gdiplus::Ok) {
-                    HGLOBAL hStreamGlobal = NULL;
-                    if (GetHGlobalFromStream(pStream, &hStreamGlobal) == S_OK && hStreamGlobal) {
-                        SIZE_T pngSize = GlobalSize(hStreamGlobal);
-                        hPng = GlobalAlloc(GHND, pngSize);
-                        if (hPng) {
+                    STATSTG stat;
+                    if (pStream->Stat(&stat, STATFLAG_NONAME) == S_OK && stat.cbSize.QuadPart > 0) {
+                        SIZE_T pngSize = (SIZE_T)stat.cbSize.QuadPart;
+                        HGLOBAL hStreamGlobal = NULL;
+                        if (GetHGlobalFromStream(pStream, &hStreamGlobal) == S_OK && hStreamGlobal) {
                             void* pSrc = GlobalLock(hStreamGlobal);
-                            void* pDst = GlobalLock(hPng);
-                            if (pSrc && pDst) {
-                                memcpy(pDst, pSrc, pngSize);
+                            if (pSrc) {
+                                hPng = GlobalAlloc(GHND, pngSize);
+                                if (hPng) {
+                                    void* pDst = GlobalLock(hPng);
+                                    if (pDst) {
+                                        memcpy(pDst, pSrc, pngSize);
+                                        GlobalUnlock(hPng);
+                                    }
+                                }
+
+                                hImagePng = GlobalAlloc(GHND, pngSize);
+                                if (hImagePng) {
+                                    void* pDst2 = GlobalLock(hImagePng);
+                                    if (pDst2) {
+                                        memcpy(pDst2, pSrc, pngSize);
+                                        GlobalUnlock(hImagePng);
+                                    }
+                                }
+                                GlobalUnlock(hStreamGlobal);
                             }
-                            if (pSrc) GlobalUnlock(hStreamGlobal);
-                            if (pDst) GlobalUnlock(hPng);
                         }
                     }
                 }
@@ -113,20 +138,24 @@ public:
             if (hDib) GlobalFree(hDib);
             if (hDibV5) GlobalFree(hDibV5);
             if (hPng) GlobalFree(hPng);
+            if (hImagePng) GlobalFree(hImagePng);
             return false;
         }
 
         EmptyClipboard();
 
-        // Register all standard formats so every Windows app can paste the image
+        // Register all standard formats so every Windows app pastes in exact original quality
         if (hDib) {
             SetClipboardData(CF_DIB, hDib);
         }
         if (hDibV5) {
             SetClipboardData(CF_DIBV5, hDibV5);
         }
-        if (hPng && pngFormat != 0) {
-            SetClipboardData(pngFormat, hPng);
+        if (hPng && cfPng != 0) {
+            SetClipboardData(cfPng, hPng);
+        }
+        if (hImagePng && cfImagePng != 0) {
+            SetClipboardData(cfImagePng, hImagePng);
         }
 
         CloseClipboard();

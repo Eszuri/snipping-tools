@@ -44,6 +44,7 @@ private:
     bool hasImage = false;
     bool isModified = false;
     std::wstring currentStatusMsg = L"";
+    std::wstring cachedImageInfoStr = L"";
 
     std::vector<UiButton> topButtons;
     int hoveredButtonIdx = -1;
@@ -238,6 +239,31 @@ private:
         }
     }
 
+    float GetFitScale() const {
+        RECT clientRc;
+        GetClientRect(hwnd, &clientRc);
+        int clientW = clientRc.right - clientRc.left;
+        int clientH = clientRc.bottom - clientRc.top;
+
+        int canvasW = clientW;
+        int canvasH = clientH - TOP_BAR_HEIGHT - STATUS_BAR_HEIGHT;
+
+        if (!hasImage || !capturedBmp || canvasW <= 0 || canvasH <= 0) {
+            return 1.0f;
+        }
+
+        int imgW = capturedBmp->GetWidth();
+        int imgH = capturedBmp->GetHeight();
+
+        float fitScale = 1.0f;
+        if (imgW > canvasW - 40 || imgH > canvasH - 40) {
+            float sx = (float)(canvasW - 40) / (float)imgW;
+            float sy = (float)(canvasH - 40) / (float)imgH;
+            fitScale = (std::min)(sx, sy);
+        }
+        return fitScale;
+    }
+
     RECT GetImageDisplayRect() {
         RECT clientRc;
         GetClientRect(hwnd, &clientRc);
@@ -255,14 +281,7 @@ private:
         int imgW = capturedBmp->GetWidth();
         int imgH = capturedBmp->GetHeight();
 
-        // Fit base scale
-        float fitScale = 1.0f;
-        if (imgW > canvasW - 40 || imgH > canvasH - 40) {
-            float sx = (float)(canvasW - 40) / (float)imgW;
-            float sy = (float)(canvasH - 40) / (float)imgH;
-            fitScale = (std::min)(sx, sy);
-        }
-
+        float fitScale = GetFitScale();
         float totalScale = fitScale * userZoom;
         int dispW = (int)(imgW * totalScale);
         int dispH = (int)(imgH * totalScale);
@@ -305,13 +324,37 @@ private:
         int h = capturedBmp->GetHeight();
 
         auto finalBmp = std::make_unique<Gdiplus::Bitmap>(w, h, PixelFormat32bppARGB);
-        Gdiplus::Graphics g(finalBmp.get());
-        g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
+        finalBmp->SetResolution(capturedBmp->GetHorizontalResolution(), capturedBmp->GetVerticalResolution());
 
-        g.DrawImage(capturedBmp.get(), 0, 0, w, h);
+        Gdiplus::Graphics g(finalBmp.get());
+
+        // Exact 1:1 lossless transfer of original pixels without any resampling blur or compression
+        g.SetInterpolationMode(Gdiplus::InterpolationModeNearestNeighbor);
+        g.SetPixelOffsetMode(Gdiplus::PixelOffsetModeHalf);
+        g.SetSmoothingMode(Gdiplus::SmoothingModeNone);
+
+        g.DrawImage(capturedBmp.get(), Gdiplus::Rect(0, 0, w, h), 0, 0, w, h, Gdiplus::UnitPixel);
+
+        // Render vector annotations with anti-aliasing
+        g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
+        g.SetTextRenderingHint(Gdiplus::TextRenderingHintClearTypeGridFit);
         annotationEngine.RenderAll(g, capturedBmp.get());
 
         return finalBmp;
+    }
+
+    void UpdateImageSizeCache() {
+        if (!hasImage || !capturedBmp) {
+            cachedImageInfoStr = L"";
+            return;
+        }
+        auto finalBmp = RenderFinalImage();
+        if (finalBmp) {
+            SIZE_T bytes = FileHelper::GetPngSizeBytes(finalBmp.get());
+            int w = capturedBmp->GetWidth();
+            int h = capturedBmp->GetHeight();
+            cachedImageInfoStr = std::to_wstring(w) + L" X " + std::to_wstring(h) + L" px (" + FileHelper::FormatFileSize(bytes) + L")";
+        }
     }
 
     void StartNewSnip() {
@@ -326,9 +369,10 @@ private:
                 hasImage = (capturedBmp != nullptr);
                 isModified = hasImage; // Newly captured image can be saved
                 annotationEngine.Clear();
+                UpdateImageSizeCache();
                 
                 if (hasImage) {
-                    currentStatusMsg = L"✓ Cuplikan layar berhasil diambil (" + std::to_wstring(capturedBmp->GetWidth()) + L" × " + std::to_wstring(capturedBmp->GetHeight()) + L" px)";
+                    currentStatusMsg = L"✓ Cuplikan layar berhasil diambil";
                 } else {
                     currentStatusMsg = L"";
                 }
@@ -337,12 +381,6 @@ private:
                 userZoom = 1.0f;
                 panOffsetX = 0;
                 panOffsetY = 0;
-
-                // Auto copy to clipboard on capture if enabled
-                if (hasImage && config.autoCopyOnCapture) {
-                    ClipboardHelper::CopyBitmapToClipboard(capturedBmp.get(), hwnd);
-                    currentStatusMsg += L" • Disalin ke Papan Klip";
-                }
 
                 // Expand window to Editor size (1260 x 720) when image is captured
                 if (hasImage) {
@@ -392,8 +430,12 @@ private:
         if (finalBmp) {
             std::wstring savedPath;
             if (FileHelper::QuickSave(finalBmp.get(), config, savedPath)) {
-                ClipboardHelper::CopyBitmapToClipboard(finalBmp.get(), hwnd);
-                currentStatusMsg = L"💾 Berhasil disimpan di: " + savedPath + L" (disalin ke Papan Klip)";
+                if (config.autoCopyOnSave) {
+                    ClipboardHelper::CopyBitmapToClipboard(finalBmp.get(), hwnd);
+                    currentStatusMsg = L"💾 Berhasil disimpan di: " + savedPath + L" (disalin ke Papan Klip)";
+                } else {
+                    currentStatusMsg = L"💾 Berhasil disimpan di: " + savedPath;
+                }
                 isModified = false; // Reset modification flag on save
                 if (config.openExplorerAfterSave) {
                     ShellExecuteW(NULL, L"open", L"explorer.exe", (L"/select,\"" + savedPath + L"\"").c_str(), NULL, SW_SHOWNORMAL);
@@ -410,8 +452,12 @@ private:
         if (finalBmp) {
             std::wstring savedPath;
             if (FileHelper::PromptAndSave(finalBmp.get(), config, hwnd, savedPath)) {
-                ClipboardHelper::CopyBitmapToClipboard(finalBmp.get(), hwnd);
-                currentStatusMsg = L"💾 Berhasil disimpan sebagai: " + savedPath + L" (disalin ke Papan Klip)";
+                if (config.autoCopyOnSave) {
+                    ClipboardHelper::CopyBitmapToClipboard(finalBmp.get(), hwnd);
+                    currentStatusMsg = L"💾 Berhasil disimpan sebagai: " + savedPath + L" (disalin ke Papan Klip)";
+                } else {
+                    currentStatusMsg = L"💾 Berhasil disimpan sebagai: " + savedPath;
+                }
                 isModified = false; // Reset modification flag on save
                 if (config.openExplorerAfterSave) {
                     ShellExecuteW(NULL, L"open", L"explorer.exe", (L"/select,\"" + savedPath + L"\"").c_str(), NULL, SW_SHOWNORMAL);
@@ -1141,8 +1187,14 @@ public:
                     Gdiplus::Pen framePen(Gdiplus::Color(255, 60, 65, 75), 1.0f);
                     g.DrawRectangle(&framePen, dispRc.left - 1, dispRc.top - 1, dispW + 2, dispH + 2);
 
-                    // Draw Captured Image with smooth interpolation
-                    g.SetInterpolationMode(userZoom > 2.0f ? Gdiplus::InterpolationModeNearestNeighbor : Gdiplus::InterpolationModeHighQualityBilinear);
+                    // Pixel-perfect rendering: NearestNeighbor for >= 1:1 original resolution (zero blur), HighQualityBicubic for scaled-down preview
+                    float totalScale = GetFitScale() * userZoom;
+                    if (totalScale >= 0.99f) {
+                        g.SetInterpolationMode(Gdiplus::InterpolationModeNearestNeighbor);
+                    } else {
+                        g.SetInterpolationMode(Gdiplus::InterpolationModeHighQualityBicubic);
+                    }
+                    g.SetPixelOffsetMode(Gdiplus::PixelOffsetModeHalf);
                     g.DrawImage(capturedBmp.get(), Gdiplus::Rect(dispRc.left, dispRc.top, dispW, dispH), 0, 0, capturedBmp->GetWidth(), capturedBmp->GetHeight(), Gdiplus::UnitPixel);
 
                     // Draw Vector Annotations on Top
@@ -1171,20 +1223,11 @@ public:
                 DrawPenDropdown(g);
             }
 
-            // 6. Bottom Status Bar with Zoom Level & Version v1.0
+            // 6. Bottom Status Bar with Zoom Level, Dimensions, PNG Size & Version v1.0
             int statusY = height - STATUS_BAR_HEIGHT;
             Gdiplus::SolidBrush statusBg(Gdiplus::Color(255, 28, 30, 34));
             g.FillRectangle(&statusBg, 0, statusY, width, STATUS_BAR_HEIGHT);
             g.DrawLine(&borderPen, 0, statusY, width, statusY);
-
-            int zoomPct = (int)(userZoom * 100.0f + 0.5f);
-            std::wstring statusText = hasImage && capturedBmp ?
-                (!currentStatusMsg.empty() ? currentStatusMsg : (L"✓ " + std::to_wstring(capturedBmp->GetWidth()) + L" × " + std::to_wstring(capturedBmp->GetHeight()) + L" px | Perbesaran: " + std::to_wstring(zoomPct) + L"% • Ctrl+Scroll Perbesar | Ctrl+Drag Geser | Ctrl+S Simpan")) :
-                L"Siap menangkap layar. Tekan 'Snip Baru' atau Ctrl+N.";
-
-            Gdiplus::Font fontStatus(L"Segoe UI", 11.0f, Gdiplus::FontStyleRegular, Gdiplus::UnitPixel);
-            Gdiplus::SolidBrush statusBrush(Gdiplus::Color(255, 160, 165, 175));
-            g.DrawString(statusText.c_str(), -1, &fontStatus, Gdiplus::PointF(16.0f, (float)(statusY + 6)), &statusBrush);
 
             // Version v1.0 Badge in Bottom-Right Corner
             Gdiplus::Font fontVer(L"Segoe UI", 11.0f, Gdiplus::FontStyleBold, Gdiplus::UnitPixel);
@@ -1192,8 +1235,39 @@ public:
             Gdiplus::StringFormat sfRight;
             sfRight.SetAlignment(Gdiplus::StringAlignmentFar);
             sfRight.SetLineAlignment(Gdiplus::StringAlignmentCenter);
-            Gdiplus::RectF verRect((float)(width - 120), (float)statusY, 104.0f, (float)STATUS_BAR_HEIGHT);
+            Gdiplus::RectF verRect((float)(width - 56), (float)statusY, 40.0f, (float)STATUS_BAR_HEIGHT);
             g.DrawString(L"v1.0", -1, &fontVer, verRect, &sfRight, &verBrush);
+
+            float rightReservedWidth = 60.0f;
+
+            if (hasImage && capturedBmp && !cachedImageInfoStr.empty()) {
+                // Separator " | "
+                Gdiplus::SolidBrush sepBrush(Gdiplus::Color(255, 75, 80, 90));
+                Gdiplus::RectF sepRect((float)(width - 74), (float)statusY, 14.0f, (float)STATUS_BAR_HEIGHT);
+                g.DrawString(L"|", -1, &fontVer, sepRect, &sfRight, &sepBrush);
+
+                // Image Dimension & PNG Size (e.g. "1022 X 222 px (100mb)")
+                Gdiplus::Font fontImgInfo(L"Segoe UI", 11.0f, Gdiplus::FontStyleRegular, Gdiplus::UnitPixel);
+                Gdiplus::SolidBrush imgInfoBrush(Gdiplus::Color(255, 200, 205, 215));
+                Gdiplus::RectF infoRect((float)(width - 380), (float)statusY, 300.0f, (float)STATUS_BAR_HEIGHT);
+                g.DrawString(cachedImageInfoStr.c_str(), -1, &fontImgInfo, infoRect, &sfRight, &imgInfoBrush);
+
+                rightReservedWidth = 390.0f;
+            }
+
+            int zoomPct = (int)(userZoom * 100.0f + 0.5f);
+            std::wstring statusText = hasImage && capturedBmp ?
+                (!currentStatusMsg.empty() ? currentStatusMsg : (L"✓ Perbesaran: " + std::to_wstring(zoomPct) + L"% • Ctrl+Scroll Perbesar | Ctrl+Drag Geser | Ctrl+S Simpan")) :
+                L"Siap menangkap layar. Tekan 'Snip Baru' atau Ctrl+N.";
+
+            Gdiplus::Font fontStatus(L"Segoe UI", 11.0f, Gdiplus::FontStyleRegular, Gdiplus::UnitPixel);
+            Gdiplus::SolidBrush statusBrush(Gdiplus::Color(255, 160, 165, 175));
+            Gdiplus::StringFormat sfStatus;
+            sfStatus.SetTrimming(Gdiplus::StringTrimmingEllipsisCharacter);
+            sfStatus.SetFormatFlags(Gdiplus::StringFormatFlagsNoWrap);
+            sfStatus.SetLineAlignment(Gdiplus::StringAlignmentCenter);
+            Gdiplus::RectF statusRect(16.0f, (float)statusY, (float)(width - rightReservedWidth - 24.0f), (float)STATUS_BAR_HEIGHT);
+            g.DrawString(statusText.c_str(), -1, &fontStatus, statusRect, &sfStatus, &statusBrush);
 
             BitBlt(hdc, 0, 0, width, height, hdcMem, 0, 0, SRCCOPY);
 
@@ -1455,6 +1529,7 @@ public:
                             if (annotationEngine.CanUndo()) {
                                 annotationEngine.Undo();
                                 isModified = true;
+                                UpdateImageSizeCache();
                                 currentStatusMsg = L"↺ Membatalkan perubahan (Objek tersisa: " + std::to_wstring(annotationEngine.GetShapeCount()) + L")";
                                 InvalidateRect(hWnd, NULL, FALSE);
                             }
@@ -1463,6 +1538,7 @@ public:
                             if (annotationEngine.CanRedo()) {
                                 annotationEngine.Redo();
                                 isModified = true;
+                                UpdateImageSizeCache();
                                 currentStatusMsg = L"↻ Mengembalikan perubahan (Total objek: " + std::to_wstring(annotationEngine.GetShapeCount()) + L")";
                                 InvalidateRect(hWnd, NULL, FALSE);
                             }
@@ -1526,6 +1602,7 @@ public:
                 isDrawingOnCanvas = false;
                 annotationEngine.CommitActiveShape();
                 isModified = true;
+                UpdateImageSizeCache();
                 currentStatusMsg = L"✓ Objek baru ditambahkan (Total objek: " + std::to_wstring(annotationEngine.GetShapeCount()) + L")";
                 InvalidateRect(hWnd, NULL, FALSE);
             }
@@ -1554,6 +1631,7 @@ public:
                 if (annotationEngine.CanUndo()) {
                     annotationEngine.Undo();
                     isModified = true;
+                    UpdateImageSizeCache();
                     currentStatusMsg = L"↺ Membatalkan perubahan (Objek tersisa: " + std::to_wstring(annotationEngine.GetShapeCount()) + L")";
                     InvalidateRect(hWnd, NULL, FALSE);
                 }
@@ -1562,6 +1640,7 @@ public:
                 if (annotationEngine.CanRedo()) {
                     annotationEngine.Redo();
                     isModified = true;
+                    UpdateImageSizeCache();
                     currentStatusMsg = L"↻ Mengembalikan perubahan (Total objek: " + std::to_wstring(annotationEngine.GetShapeCount()) + L")";
                     InvalidateRect(hWnd, NULL, FALSE);
                 }

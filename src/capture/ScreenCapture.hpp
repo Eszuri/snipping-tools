@@ -56,11 +56,26 @@ public:
         // Capture layered/transparent windows too via CAPTUREBLT
         BitBlt(hdcMem, 0, 0, bounds.width, bounds.height, hdcScreen, bounds.x, bounds.y, SRCCOPY | CAPTUREBLT);
 
-        // Convert to Gdiplus::Bitmap
-        auto bitmap = std::make_unique<Gdiplus::Bitmap>(bounds.width, bounds.height, bounds.width * 4, PixelFormat32bppPARGB, (BYTE*)pBits);
+        // Ensure 100% opaque alpha channel (0xFF) for all captured screen pixels
+        // BitBlt writes RGB without setting alpha (leaves 0x00), which causes GDI+/PNG/Clipboard to treat image as transparent/blurry
+        DWORD totalPixels = (DWORD)(bounds.width * bounds.height);
+        DWORD* pPixels = (DWORD*)pBits;
+        for (DWORD i = 0; i < totalPixels; ++i) {
+            pPixels[i] |= 0xFF000000;
+        }
+
+        int dpiX = GetDeviceCaps(hdcScreen, LOGPIXELSX);
+        int dpiY = GetDeviceCaps(hdcScreen, LOGPIXELSY);
+
+        // Convert to Gdiplus::Bitmap using true 32bpp ARGB with screen DPI resolution
+        auto bitmap = std::make_unique<Gdiplus::Bitmap>(bounds.width, bounds.height, bounds.width * 4, PixelFormat32bppARGB, (BYTE*)pBits);
+        bitmap->SetResolution((Gdiplus::REAL)dpiX, (Gdiplus::REAL)dpiY);
 
         // Make an independent copy so we can clean up GDI objects
         std::unique_ptr<Gdiplus::Bitmap> result(bitmap->Clone(0, 0, bounds.width, bounds.height, PixelFormat32bppARGB));
+        if (result) {
+            result->SetResolution((Gdiplus::REAL)dpiX, (Gdiplus::REAL)dpiY);
+        }
 
         SelectObject(hdcMem, hOld);
         DeleteObject(hBmp);
@@ -84,6 +99,10 @@ public:
 
         if (width <= 0 || height <= 0) return nullptr;
 
-        return std::unique_ptr<Gdiplus::Bitmap>(source->Clone(srcX, srcY, width, height, PixelFormat32bppARGB));
+        auto cropped = std::unique_ptr<Gdiplus::Bitmap>(source->Clone(srcX, srcY, width, height, PixelFormat32bppARGB));
+        if (cropped) {
+            cropped->SetResolution(source->GetHorizontalResolution(), source->GetVerticalResolution());
+        }
+        return cropped;
     }
 };
