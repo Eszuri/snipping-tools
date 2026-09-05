@@ -3,14 +3,9 @@
 
 enum class AnnotationTool {
     None,
-    Rectangle,
-    Ellipse,
-    Arrow,
     Pen,
-    Highlighter,
-    StepBadge,
-    Pixelate,
-    Text
+    Rectangle,
+    Ellipse
 };
 
 enum class SnipMode {
@@ -27,14 +22,12 @@ enum class NamingMode {
 struct AppConfig {
     COLORREF currentColor = RGB(235, 30, 60); // Default vibrant red
     int currentStrokeWidth = 4;
-    int currentFontSize = 16;
     AnnotationTool currentTool = AnnotationTool::Pen;
     SnipMode snipMode = SnipMode::Rectangle;
     int delaySeconds = 0; // 0, 3, 5, 10
     bool autoCopyOnSave = true; // Copy to clipboard only after saving (Save / Save As)
     bool showMagnifier = true;
     bool openExplorerAfterSave = false;
-    int magnifierZoom = 4;
     std::wstring customSaveDir = L""; // User custom save directory
 
     NamingMode namingMode = NamingMode::Timestamp;

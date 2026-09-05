@@ -5,3 +5,20 @@
 
 // 1 is the manifest resource ID, 24 is RT_MANIFEST
 1 24 "app.manifest"
+
+// PNG Icon Assets (201 - 215)
+201 RCDATA "../assets/icons/snip_new.png"
+202 RCDATA "../assets/icons/mode.png"
+203 RCDATA "../assets/icons/delay.png"
+204 RCDATA "../assets/icons/pen.png"
+205 RCDATA "../assets/icons/rect.png"
+206 RCDATA "../assets/icons/circle.png"
+207 RCDATA "../assets/icons/undo.png"
+208 RCDATA "../assets/icons/redo.png"
+209 RCDATA "../assets/icons/save.png"
+210 RCDATA "../assets/icons/save_as.png"
+211 RCDATA "../assets/icons/settings.png"
+212 RCDATA "../assets/icons/mode.png"
+213 RCDATA "../assets/icons/mode_window.png"
+214 RCDATA "../assets/icons/mode_fullscreen.png"
+215 RCDATA "../assets/icons/timer_off.png"

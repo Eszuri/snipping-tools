@@ -5,6 +5,7 @@
 #include "../annotation/Shapes.hpp"
 #include "../utils/ClipboardHelper.hpp"
 #include "../utils/FileHelper.hpp"
+#include "../utils/IconHelper.hpp"
 #include "OverlayWindow.hpp"
 #include "SettingsWindow.hpp"
 
@@ -39,6 +40,7 @@ private:
     OverlayWindow overlay;
     SettingsWindow settingsWindow;
     AnnotationEngine annotationEngine;
+    IconHelper iconHelper;
 
     std::unique_ptr<Gdiplus::Bitmap> capturedBmp;
     bool hasImage = false;
@@ -131,22 +133,22 @@ private:
         btnNew.isPrimary = true;
         topButtons.push_back(btnNew);
 
-        // 2. Mode Selector Button with Dropdown Indicator
-        std::wstring modeStr = (config.snipMode == SnipMode::Rectangle) ? L"Mode: Persegi ▾" :
-                               (config.snipMode == SnipMode::Window) ? L"Mode: Jendela ▾" : L"Mode: Layar Penuh ▾";
+        // 2. Mode Selector Button (Dropdown chevron is drawn by code, not embedded in string)
+        std::wstring modeStr = (config.snipMode == SnipMode::Rectangle) ? L"Mode: Persegi" :
+                               (config.snipMode == SnipMode::Window) ? L"Mode: Jendela" : L"Mode: Layar Penuh";
         topButtons.push_back({ MainWindowButtonId::ToggleMode, AnnotationTool::None, modeStr });
 
-        // 3. Delay Selector Button with Dropdown Indicator
-        std::wstring delayStr = (config.delaySeconds == 0) ? L"Tunda: Mati ▾" :
-                                (L"Tunda: " + std::to_wstring(config.delaySeconds) + L"d ▾");
+        // 3. Delay Selector Button
+        std::wstring delayStr = (config.delaySeconds == 0) ? L"Tunda: Mati" :
+                                (L"Tunda: " + std::to_wstring(config.delaySeconds) + L"d");
         topButtons.push_back({ MainWindowButtonId::ToggleDelay, AnnotationTool::None, delayStr });
 
-        // Separator
-        UiButton sep1;
-        sep1.isSeparator = true;
-        topButtons.push_back(sep1);
-
         if (hasImage) {
+            // Separator between capture tools and annotation tools
+            UiButton sep1;
+            sep1.isSeparator = true;
+            topButtons.push_back(sep1);
+
             // 4. Pen Tool with Dropdown Indicator
             topButtons.push_back({ MainWindowButtonId::Tool_Pen, AnnotationTool::Pen, L"Pena" });
 
@@ -173,7 +175,7 @@ private:
             topButtons.push_back({ MainWindowButtonId::SaveAs, AnnotationTool::None, L"Simpan Sebagai" });
         }
 
-        // Separator before Settings
+        // Exactly one separator before Settings
         UiButton sepSet;
         sepSet.isSeparator = true;
         topButtons.push_back(sepSet);
@@ -201,10 +203,10 @@ private:
                 int btnW = 36;
                 if (btn.isPrimary) {
                     btnW = 108;
-                } else if (btn.id == MainWindowButtonId::ToggleDelay) {
-                    btnW = 105;
                 } else if (btn.id == MainWindowButtonId::ToggleMode) {
-                    btnW = 150;
+                    btnW = (config.snipMode == SnipMode::FullScreen) ? 165 : 142;
+                } else if (btn.id == MainWindowButtonId::ToggleDelay) {
+                    btnW = 120;
                 } else if (btn.id == MainWindowButtonId::Tool_Pen) {
                     btnW = 48; // Dropdown indicator
                 } else if (btn.id == MainWindowButtonId::Tool_Rect) {
@@ -220,16 +222,16 @@ private:
                 } else if (btn.id == MainWindowButtonId::SaveAs) {
                     btnW = 132;
                 } else if (btn.id == MainWindowButtonId::Settings) {
-                    btnW = 110;
+                    btnW = 115;
                 }
 
                 btn.bounds = { (LONG)curX, (LONG)curY, (LONG)(curX + btnW), (LONG)(curY + btnH) };
 
                 // Set dropdown positions directly below their buttons
                 if (btn.id == MainWindowButtonId::ToggleMode) {
-                    modeDropdownBounds = { (LONG)curX, (LONG)(TOP_BAR_HEIGHT + 2), (LONG)(curX + 175), (LONG)(TOP_BAR_HEIGHT + 104) };
+                    modeDropdownBounds = { (LONG)curX, (LONG)(TOP_BAR_HEIGHT + 2), (LONG)(curX + 165), (LONG)(TOP_BAR_HEIGHT + 104) };
                 } else if (btn.id == MainWindowButtonId::ToggleDelay) {
-                    delayDropdownBounds = { (LONG)curX, (LONG)(TOP_BAR_HEIGHT + 2), (LONG)(curX + 155), (LONG)(TOP_BAR_HEIGHT + 134) };
+                    delayDropdownBounds = { (LONG)curX, (LONG)(TOP_BAR_HEIGHT + 2), (LONG)(curX + 165), (LONG)(TOP_BAR_HEIGHT + 134) };
                 } else if (btn.id == MainWindowButtonId::Tool_Pen) {
                     penDropdownBounds = { (LONG)curX, (LONG)(TOP_BAR_HEIGHT + 2), (LONG)(curX + 228), (LONG)(TOP_BAR_HEIGHT + 125) };
                 }
@@ -467,115 +469,6 @@ private:
         }
     }
 
-    void DrawVectorIcon(Gdiplus::Graphics& g, MainWindowButtonId id, const Gdiplus::RectF& rect, Gdiplus::Color color, bool isHovered, bool isSelected) {
-        float cx = rect.X + rect.Width / 2.0f;
-        float cy = rect.Y + rect.Height / 2.0f;
-
-        Gdiplus::Pen pen(color, 1.8f);
-        pen.SetStartCap(Gdiplus::LineCapRound);
-        pen.SetEndCap(Gdiplus::LineCapRound);
-        pen.SetLineJoin(Gdiplus::LineJoinRound);
-
-        Gdiplus::SolidBrush brush(color);
-
-        switch (id) {
-        case MainWindowButtonId::Tool_Pen: {
-            // Diagonal pen/pencil vector
-            float px = cx - 5.0f;
-            float py = cy - 5.0f;
-            g.DrawLine(&pen, px - 1.0f, py + 8.0f, px + 7.0f, py);
-            g.DrawLine(&pen, px + 1.0f, py + 10.0f, px + 9.0f, py + 2.0f);
-            
-            // Pen nib tip
-            Gdiplus::PointF tip[3] = { { px - 4.0f, py + 11.0f }, { px + 1.0f, py + 10.0f }, { px - 1.0f, py + 6.0f } };
-            g.FillPolygon(&brush, tip, 3);
-
-            // Dropdown triangle ▼
-            Gdiplus::PointF arr[3] = { { cx + 8.0f, cy - 2.0f }, { cx + 15.0f, cy - 2.0f }, { cx + 11.5f, cy + 3.0f } };
-            g.FillPolygon(&brush, arr, 3);
-            break;
-        }
-        case MainWindowButtonId::Tool_Rect: {
-            // Centered rectangle
-            g.DrawRectangle(&pen, (INT)(cx - 7.0f), (INT)(cy - 5.0f), 14, 10);
-            break;
-        }
-        case MainWindowButtonId::Tool_Circle: {
-            // Centered circle
-            g.DrawEllipse(&pen, (INT)(cx - 6.0f), (INT)(cy - 6.0f), 12, 12);
-            break;
-        }
-        case MainWindowButtonId::Undo: {
-            // Modern Fluent Undo: sharp left arrowhead + smooth arching tail
-            Gdiplus::PointF arrow[3] = {
-                { cx - 6.0f, cy - 2.0f }, // Left Tip
-                { cx - 1.5f, cy - 6.0f }, // Top Barb
-                { cx - 1.5f, cy + 2.0f }  // Bottom Barb
-            };
-            g.FillPolygon(&brush, arrow, 3);
-
-            Gdiplus::GraphicsPath path;
-            path.AddLine(cx - 1.5f, cy - 2.0f, cx + 1.5f, cy - 2.0f);
-            path.AddArc(cx - 1.5f, cy - 2.0f, 6.5f, 6.5f, -90.0f, 90.0f);
-            path.AddLine(cx + 5.0f, cy + 1.25f, cx + 5.0f, cy + 4.5f);
-            
-            Gdiplus::Pen archPen(color, 1.8f);
-            archPen.SetStartCap(Gdiplus::LineCapRound);
-            archPen.SetEndCap(Gdiplus::LineCapRound);
-            g.DrawPath(&archPen, &path);
-            break;
-        }
-        case MainWindowButtonId::Redo: {
-            // Modern Fluent Redo: sharp right arrowhead + smooth arching tail
-            Gdiplus::PointF arrow[3] = {
-                { cx + 6.0f, cy - 2.0f }, // Right Tip
-                { cx + 1.5f, cy - 6.0f }, // Top Barb
-                { cx + 1.5f, cy + 2.0f }  // Bottom Barb
-            };
-            g.FillPolygon(&brush, arrow, 3);
-
-            Gdiplus::GraphicsPath path;
-            path.AddLine(cx + 1.5f, cy - 2.0f, cx - 1.5f, cy - 2.0f);
-            path.AddArc(cx - 5.0f, cy - 2.0f, 6.5f, 6.5f, -90.0f, -90.0f);
-            path.AddLine(cx - 5.0f, cy + 1.25f, cx - 5.0f, cy + 4.5f);
-            
-            Gdiplus::Pen archPen(color, 1.8f);
-            archPen.SetStartCap(Gdiplus::LineCapRound);
-            archPen.SetEndCap(Gdiplus::LineCapRound);
-            g.DrawPath(&archPen, &path);
-            break;
-        }
-        case MainWindowButtonId::Settings: {
-            // Crisp Modern Fluent 6-tooth Gear Icon
-            Gdiplus::GraphicsPath gearPath;
-            float outerR = 6.2f;
-            float innerR = 4.4f;
-            float holeR = 2.2f;
-            const int numTeeth = 6;
-            
-            std::vector<Gdiplus::PointF> pts;
-            for (int i = 0; i < numTeeth; ++i) {
-                float baseAngle = i * 60.0f;
-                float a1 = (baseAngle - 15.0f) * 3.14159265f / 180.0f;
-                float a2 = (baseAngle - 8.0f) * 3.14159265f / 180.0f;
-                float a3 = (baseAngle + 8.0f) * 3.14159265f / 180.0f;
-                float a4 = (baseAngle + 15.0f) * 3.14159265f / 180.0f;
-
-                pts.push_back({ cx + innerR * cosf(a1), cy + innerR * sinf(a1) });
-                pts.push_back({ cx + outerR * cosf(a2), cy + outerR * sinf(a2) });
-                pts.push_back({ cx + outerR * cosf(a3), cy + outerR * sinf(a3) });
-                pts.push_back({ cx + innerR * cosf(a4), cy + innerR * sinf(a4) });
-            }
-            gearPath.AddPolygon(pts.data(), (INT)pts.size());
-            gearPath.AddEllipse(cx - holeR, cy - holeR, holeR * 2.0f, holeR * 2.0f);
-
-            g.FillPath(&brush, &gearPath);
-            break;
-        }
-        default:
-            break;
-        }
-    }
 
     void DrawPenDropdown(Gdiplus::Graphics& g) {
         if (!isPenDropdownOpen) return;
@@ -679,10 +572,10 @@ private:
         Gdiplus::Pen borderPen(Gdiplus::Color(255, 65, 70, 80), 1.0f);
         g.DrawRectangle(&borderPen, x, y, w, h);
 
-        const struct { SnipMode mode; const WCHAR* label; } items[] = {
-            { SnipMode::Rectangle, L"▢ Persegi" },
-            { SnipMode::Window, L"🗔 Jendela" },
-            { SnipMode::FullScreen, L"🖥 Layar Penuh" }
+        const struct { SnipMode mode; AppIconId icon; const WCHAR* label; } items[] = {
+            { SnipMode::Rectangle,  AppIconId::ModeRect,       L"Persegi" },
+            { SnipMode::Window,     AppIconId::ModeWindow,     L"Jendela" },
+            { SnipMode::FullScreen, AppIconId::ModeFullScreen, L"Layar Penuh" }
         };
 
         Gdiplus::Font fontItem(L"Segoe UI", 11.0f, Gdiplus::FontStyleRegular, Gdiplus::UnitPixel);
@@ -690,6 +583,7 @@ private:
         Gdiplus::StringFormat sfLeft;
         sfLeft.SetAlignment(Gdiplus::StringAlignmentNear);
         sfLeft.SetLineAlignment(Gdiplus::StringAlignmentCenter);
+        sfLeft.SetFormatFlags(Gdiplus::StringFormatFlagsNoWrap);
 
         int itemH = 28;
         for (int i = 0; i < 3; ++i) {
@@ -701,8 +595,13 @@ private:
                 g.FillRectangle(&selBg, x + 4, iy, w - 8, itemH);
             }
 
-            Gdiplus::SolidBrush textBrush(isSelected ? Gdiplus::Color(255, 255, 255, 255) : Gdiplus::Color(255, 220, 225, 230));
-            Gdiplus::RectF itemRect((float)(x + 12), (float)iy, (float)(w - 24), (float)itemH);
+            // Asset icon matching feature
+            Gdiplus::RectF itemIconRect((float)(x + 10), (float)(iy + (itemH - 16) / 2), 16.0f, 16.0f);
+            Gdiplus::Color itemColor = isSelected ? Gdiplus::Color(255, 255, 255, 255) : Gdiplus::Color(255, 220, 225, 230);
+            iconHelper.Draw(g, items[i].icon, itemIconRect, itemColor);
+
+            Gdiplus::SolidBrush textBrush(itemColor);
+            Gdiplus::RectF itemRect((float)(x + 32), (float)iy, (float)(w - 38), (float)itemH);
             g.DrawString(items[i].label, -1, isSelected ? &fontItemBold : &fontItem, itemRect, &sfLeft, &textBrush);
         }
     }
@@ -725,11 +624,11 @@ private:
         Gdiplus::Pen borderPen(Gdiplus::Color(255, 65, 70, 80), 1.0f);
         g.DrawRectangle(&borderPen, x, y, w, h);
 
-        const struct { int seconds; const WCHAR* label; } items[] = {
-            { 0, L"⏱ Tanpa Jeda" },
-            { 3, L"⏱ Tunda 3 detik" },
-            { 5, L"⏱ Tunda 5 detik" },
-            { 10, L"⏱ Tunda 10 detik" }
+        const struct { int seconds; AppIconId icon; const WCHAR* label; } items[] = {
+            { 0,  AppIconId::TimerOff, L"Tanpa Jeda (Mati)" },
+            { 3,  AppIconId::Delay,    L"Tunda 3 detik" },
+            { 5,  AppIconId::Delay,    L"Tunda 5 detik" },
+            { 10, AppIconId::Delay,    L"Tunda 10 detik" }
         };
 
         Gdiplus::Font fontItem(L"Segoe UI", 11.0f, Gdiplus::FontStyleRegular, Gdiplus::UnitPixel);
@@ -737,6 +636,7 @@ private:
         Gdiplus::StringFormat sfLeft;
         sfLeft.SetAlignment(Gdiplus::StringAlignmentNear);
         sfLeft.SetLineAlignment(Gdiplus::StringAlignmentCenter);
+        sfLeft.SetFormatFlags(Gdiplus::StringFormatFlagsNoWrap);
 
         int itemH = 28;
         for (int i = 0; i < 4; ++i) {
@@ -748,8 +648,13 @@ private:
                 g.FillRectangle(&selBg, x + 4, iy, w - 8, itemH);
             }
 
-            Gdiplus::SolidBrush textBrush(isSelected ? Gdiplus::Color(255, 255, 255, 255) : Gdiplus::Color(255, 220, 225, 230));
-            Gdiplus::RectF itemRect((float)(x + 12), (float)iy, (float)(w - 24), (float)itemH);
+            // Asset icon matching feature
+            Gdiplus::RectF itemIconRect((float)(x + 10), (float)(iy + (itemH - 16) / 2), 16.0f, 16.0f);
+            Gdiplus::Color itemColor = isSelected ? Gdiplus::Color(255, 255, 255, 255) : Gdiplus::Color(255, 220, 225, 230);
+            iconHelper.Draw(g, items[i].icon, itemIconRect, itemColor);
+
+            Gdiplus::SolidBrush textBrush(itemColor);
+            Gdiplus::RectF itemRect((float)(x + 32), (float)iy, (float)(w - 38), (float)itemH);
             g.DrawString(items[i].label, -1, isSelected ? &fontItemBold : &fontItem, itemRect, &sfLeft, &textBrush);
         }
     }
@@ -794,6 +699,8 @@ public:
         );
 
         if (!hwnd) return false;
+
+        iconHelper.Init();
 
         // Register App Shortcut: Ctrl+N & PrintScreen
         RegisterHotKey(hwnd, 3001, MOD_CONTROL | MOD_NOREPEAT, 'N');
@@ -937,17 +844,12 @@ public:
                     Gdiplus::SolidBrush primBg(isHovered ? Gdiplus::Color(255, 24, 140, 240) : Gdiplus::Color(255, 0, 120, 215));
                     g.FillRectangle(&primBg, btnRect);
 
-                    // Plus icon + text
-                    Gdiplus::Pen plusPen(Gdiplus::Color(255, 255, 255, 255), 2.0f);
-                    plusPen.SetStartCap(Gdiplus::LineCapRound);
-                    plusPen.SetEndCap(Gdiplus::LineCapRound);
-                    float pcx = btnRect.X + 16.0f;
-                    float pcy = btnRect.Y + btnRect.Height / 2.0f;
-                    g.DrawLine(&plusPen, pcx - 4.0f, pcy, pcx + 4.0f, pcy);
-                    g.DrawLine(&plusPen, pcx, pcy - 4.0f, pcx, pcy + 4.0f);
+                    // Camera Icon from asset
+                    Gdiplus::RectF iconRect(btnRect.X + 8.0f, btnRect.Y + (btnRect.Height - 16.0f) / 2.0f, 16.0f, 16.0f);
+                    iconHelper.Draw(g, AppIconId::SnipNew, iconRect, Gdiplus::Color(255, 255, 255, 255));
 
                     Gdiplus::SolidBrush whiteText(Gdiplus::Color(255, 255, 255, 255));
-                    Gdiplus::RectF textRect(btnRect.X + 26.0f, btnRect.Y, btnRect.Width - 26.0f, btnRect.Height);
+                    Gdiplus::RectF textRect(btnRect.X + 28.0f, btnRect.Y, btnRect.Width - 28.0f, btnRect.Height);
                     g.DrawString(btn.label.c_str(), -1, &fontTextBold, textRect, &sfLeft, &whiteText);
                 } else if (btn.id == MainWindowButtonId::ToggleDelay || btn.id == MainWindowButtonId::ToggleMode) {
                     // Dropdown/Toggle pill
@@ -960,22 +862,35 @@ public:
                     Gdiplus::Pen pillBorder(isOpen ? Gdiplus::Color(255, 0, 140, 255) : Gdiplus::Color(255, 60, 64, 72), 1.0f);
                     g.DrawRectangle(&pillBorder, (INT)btn.bounds.left, (INT)btn.bounds.top, (INT)bw, (INT)bh);
 
-                    // Mini-icon
-                    float micx = btnRect.X + 14.0f;
-                    float micy = btnRect.Y + btnRect.Height / 2.0f;
-                    Gdiplus::Pen miniPen(Gdiplus::Color(255, 170, 175, 185), 1.4f);
+                    // Dynamic Asset Icon matching current mode/delay
+                    Gdiplus::RectF iconRect(btnRect.X + 8.0f, btnRect.Y + (btnRect.Height - 16.0f) / 2.0f, 16.0f, 16.0f);
+                    Gdiplus::Color iconColor(255, 200, 205, 215);
 
                     if (btn.id == MainWindowButtonId::ToggleMode) {
-                        g.DrawRectangle(&miniPen, (INT)(micx - 5), (INT)(micy - 4), 10, 8);
-                    } else if (btn.id == MainWindowButtonId::ToggleDelay) {
-                        g.DrawEllipse(&miniPen, (INT)(micx - 5), (INT)(micy - 5), 10, 10);
-                        g.DrawLine(&miniPen, micx, micy, micx + 3, micy);
-                        g.DrawLine(&miniPen, micx, micy, micx, micy - 3);
+                        AppIconId modeIcon = (config.snipMode == SnipMode::Rectangle) ? AppIconId::ModeRect :
+                                             (config.snipMode == SnipMode::Window) ? AppIconId::ModeWindow : AppIconId::ModeFullScreen;
+                        iconHelper.Draw(g, modeIcon, iconRect, iconColor);
+                    } else {
+                        AppIconId delayIcon = (config.delaySeconds == 0) ? AppIconId::TimerOff : AppIconId::Delay;
+                        iconHelper.Draw(g, delayIcon, iconRect, iconColor);
                     }
 
+                    // Single-line text with NoWrap
+                    Gdiplus::StringFormat sfBtn;
+                    sfBtn.SetAlignment(Gdiplus::StringAlignmentNear);
+                    sfBtn.SetLineAlignment(Gdiplus::StringAlignmentCenter);
+                    sfBtn.SetFormatFlags(Gdiplus::StringFormatFlagsNoWrap);
+
                     Gdiplus::SolidBrush textColor(Gdiplus::Color(255, 220, 225, 230));
-                    Gdiplus::RectF textRect(btnRect.X + 26.0f, btnRect.Y, btnRect.Width - 26.0f, btnRect.Height);
-                    g.DrawString(btn.label.c_str(), -1, &fontText, textRect, &sfLeft, &textColor);
+                    Gdiplus::RectF textRect(btnRect.X + 28.0f, btnRect.Y, btnRect.Width - 44.0f, btnRect.Height);
+                    g.DrawString(btn.label.c_str(), -1, &fontText, textRect, &sfBtn, &textColor);
+
+                    // Dedicated crisp dropdown chevron ▼ on the right edge
+                    float chX = btnRect.X + btnRect.Width - 12.0f;
+                    float chY = btnRect.Y + btnRect.Height / 2.0f;
+                    Gdiplus::SolidBrush chBrush(Gdiplus::Color(255, 160, 165, 175));
+                    Gdiplus::PointF chPts[3] = { { chX - 3.5f, chY - 1.5f }, { chX + 3.5f, chY - 1.5f }, { chX, chY + 2.5f } };
+                    g.FillPolygon(&chBrush, chPts, 3);
                 } else if (btn.id == MainWindowButtonId::Undo || btn.id == MainWindowButtonId::Redo) {
                     // Urungkan / Kembalikan with Icon and Text
                     bool isEnabled = IsButtonEnabled(btn.id);
@@ -987,8 +902,8 @@ public:
                     g.DrawRectangle(&actBorder, (INT)btn.bounds.left, (INT)btn.bounds.top, (INT)bw, (INT)bh);
 
                     Gdiplus::Color iconColor = !isEnabled ? Gdiplus::Color(255, 75, 80, 90) : (isHovered ? Gdiplus::Color(255, 255, 255, 255) : Gdiplus::Color(255, 220, 225, 230));
-                    Gdiplus::RectF iconRect(btnRect.X + 8.0f, btnRect.Y, 16.0f, btnRect.Height);
-                    DrawVectorIcon(g, btn.id, iconRect, iconColor, isHovered && isEnabled, false);
+                    Gdiplus::RectF iconRect(btnRect.X + 8.0f, btnRect.Y + (btnRect.Height - 16.0f) / 2.0f, 16.0f, 16.0f);
+                    iconHelper.Draw(g, (btn.id == MainWindowButtonId::Undo ? AppIconId::Undo : AppIconId::Redo), iconRect, iconColor);
 
                     Gdiplus::SolidBrush textBrush(iconColor);
                     Gdiplus::RectF textRect(btnRect.X + 28.0f, btnRect.Y, btnRect.Width - 28.0f, btnRect.Height);
@@ -1003,13 +918,9 @@ public:
                     Gdiplus::Pen actBorder(!isEnabled ? Gdiplus::Color(255, 38, 40, 46) : Gdiplus::Color(255, 58, 62, 70), 1.0f);
                     g.DrawRectangle(&actBorder, (INT)btn.bounds.left, (INT)btn.bounds.top, (INT)bw, (INT)bh);
 
-                    // Mini Floppy disk vector icon
-                    float ficx = btnRect.X + 16.0f;
-                    float ficy = btnRect.Y + btnRect.Height / 2.0f;
                     Gdiplus::Color diskColor = !isEnabled ? Gdiplus::Color(255, 75, 80, 90) : ((btn.id == MainWindowButtonId::Save) ? Gdiplus::Color(255, 60, 170, 255) : Gdiplus::Color(255, 220, 225, 230));
-                    Gdiplus::Pen diskPen(diskColor, 1.4f);
-                    g.DrawRectangle(&diskPen, (INT)(ficx - 6), (INT)(ficy - 6), 12, 12);
-                    g.DrawRectangle(&diskPen, (INT)(ficx - 3), (INT)(ficy - 6), 6, 4);
+                    Gdiplus::RectF iconRect(btnRect.X + 8.0f, btnRect.Y + (btnRect.Height - 16.0f) / 2.0f, 16.0f, 16.0f);
+                    iconHelper.Draw(g, (btn.id == MainWindowButtonId::Save ? AppIconId::Save : AppIconId::SaveAs), iconRect, diskColor);
 
                     Gdiplus::SolidBrush textBrush(diskColor);
                     Gdiplus::RectF textRect(btnRect.X + 28.0f, btnRect.Y, btnRect.Width - 28.0f, btnRect.Height);
@@ -1023,8 +934,8 @@ public:
                     g.DrawRectangle(&actBorder, (INT)btn.bounds.left, (INT)btn.bounds.top, (INT)bw, (INT)bh);
 
                     Gdiplus::Color iconColor = isHovered ? Gdiplus::Color(255, 255, 255, 255) : Gdiplus::Color(255, 220, 225, 230);
-                    Gdiplus::RectF iconRect(btnRect.X + 8.0f, btnRect.Y, 16.0f, btnRect.Height);
-                    DrawVectorIcon(g, btn.id, iconRect, iconColor, isHovered, false);
+                    Gdiplus::RectF iconRect(btnRect.X + 8.0f, btnRect.Y + (btnRect.Height - 16.0f) / 2.0f, 16.0f, 16.0f);
+                    iconHelper.Draw(g, AppIconId::Settings, iconRect, iconColor);
 
                     Gdiplus::SolidBrush textBrush(iconColor);
                     Gdiplus::RectF textRect(btnRect.X + 28.0f, btnRect.Y, btnRect.Width - 28.0f, btnRect.Height);
@@ -1038,8 +949,8 @@ public:
                     g.DrawRectangle(&actBorder, (INT)btn.bounds.left, (INT)btn.bounds.top, (INT)bw, (INT)bh);
 
                     Gdiplus::Color iconColor = isSelectedTool ? Gdiplus::Color(255, 255, 255, 255) : (isHovered ? Gdiplus::Color(255, 255, 255, 255) : Gdiplus::Color(255, 220, 225, 230));
-                    Gdiplus::RectF iconRect(btnRect.X + 8.0f, btnRect.Y, 16.0f, btnRect.Height);
-                    DrawVectorIcon(g, btn.id, iconRect, iconColor, isHovered, isSelectedTool);
+                    Gdiplus::RectF iconRect(btnRect.X + 8.0f, btnRect.Y + (btnRect.Height - 16.0f) / 2.0f, 16.0f, 16.0f);
+                    iconHelper.Draw(g, (btn.id == MainWindowButtonId::Tool_Rect ? AppIconId::Rect : AppIconId::Circle), iconRect, iconColor);
 
                     Gdiplus::SolidBrush textBrush(iconColor);
                     Gdiplus::RectF textRect(btnRect.X + 28.0f, btnRect.Y, btnRect.Width - 28.0f, btnRect.Height);
@@ -1055,7 +966,15 @@ public:
                     }
 
                     Gdiplus::Color iconColor = isSelectedTool ? Gdiplus::Color(255, 255, 255, 255) : Gdiplus::Color(255, 220, 225, 230);
-                    DrawVectorIcon(g, btn.id, btnRect, iconColor, isHovered, isSelectedTool);
+                    Gdiplus::RectF iconRect(btnRect.X + 8.0f, btnRect.Y + (btnRect.Height - 16.0f) / 2.0f, 16.0f, 16.0f);
+                    iconHelper.Draw(g, AppIconId::Pen, iconRect, iconColor);
+
+                    // Dropdown indicator triangle ▼
+                    float arrX = btnRect.X + btnRect.Width - 14.0f;
+                    float arrY = btnRect.Y + btnRect.Height / 2.0f;
+                    Gdiplus::SolidBrush arrBrush(iconColor);
+                    Gdiplus::PointF arr[3] = { { arrX, arrY - 2.0f }, { arrX + 6.0f, arrY - 2.0f }, { arrX + 3.0f, arrY + 2.0f } };
+                    g.FillPolygon(&arrBrush, arr, 3);
 
                     // Active color underline
                     if (btn.id == MainWindowButtonId::Tool_Pen) {
@@ -1099,43 +1018,9 @@ public:
                 Gdiplus::SolidBrush iconBadgeBg(Gdiplus::Color(255, 0, 122, 255));
                 g.FillPath(&iconBadgeBg, &bgPath);
 
-                // Inner Solid White Camera Symbol
-                float camCX = (float)width / 2.0f;
-                float camCY = icY + icH / 2.0f;
-
-                // Viewfinder Top Bump
-                Gdiplus::GraphicsPath bumpPath;
-                float bx = camCX - 6.0f, by = camCY - 16.0f, bw = 12.0f, bh = 5.0f, br = 2.0f;
-                bumpPath.AddArc(bx, by, br * 2, br * 2, 180, 90);
-                bumpPath.AddArc(bx + bw - br * 2, by, br * 2, br * 2, 270, 90);
-                bumpPath.AddArc(bx + bw - br * 2, by + bh - br * 2, br * 2, br * 2, 0, 90);
-                bumpPath.AddArc(bx, by + bh - br * 2, br * 2, br * 2, 90, 90);
-                bumpPath.CloseFigure();
-                Gdiplus::SolidBrush whiteIconBrush(Gdiplus::Color(255, 255, 255, 255));
-                g.FillPath(&whiteIconBrush, &bumpPath);
-
-                // Camera Body
-                Gdiplus::GraphicsPath bodyPath;
-                float cx0 = camCX - 19.0f, cy0 = camCY - 11.0f, cw = 38.0f, ch = 27.0f, cr = 6.0f;
-                bodyPath.AddArc(cx0, cy0, cr * 2, cr * 2, 180, 90);
-                bodyPath.AddArc(cx0 + cw - cr * 2, cy0, cr * 2, cr * 2, 270, 90);
-                bodyPath.AddArc(cx0 + cw - cr * 2, cy0 + ch - cr * 2, cr * 2, cr * 2, 0, 90);
-                bodyPath.AddArc(cx0, cy0 + ch - cr * 2, cr * 2, cr * 2, 90, 90);
-                bodyPath.CloseFigure();
-                g.FillPath(&whiteIconBrush, &bodyPath);
-
-                // Blue Flash dot
-                Gdiplus::SolidBrush blueDot(Gdiplus::Color(255, 0, 122, 255));
-                g.FillEllipse(&blueDot, (INT)(camCX + 9.5f), (INT)(cy0 + 4.0f), 4, 4);
-
-                // Outer Lens Circle (Blue)
-                float lensR = 8.5f;
-                float lensCY = cy0 + 13.5f;
-                g.FillEllipse(&blueDot, (INT)(camCX - lensR), (INT)(lensCY - lensR), (INT)(lensR * 2.0f), (INT)(lensR * 2.0f));
-
-                // Inner Lens Center (White)
-                float inR = 4.0f;
-                g.FillEllipse(&whiteIconBrush, (INT)(camCX - inR), (INT)(lensCY - inR), (INT)(inR * 2.0f), (INT)(inR * 2.0f));
+                // Inner Solid White Camera Symbol from Asset
+                Gdiplus::RectF camRect(icX + (icW - 44.0f) / 2.0f, icY + (icH - 44.0f) / 2.0f, 44.0f, 44.0f);
+                iconHelper.Draw(g, AppIconId::SnipNew, camRect, Gdiplus::Color(255, 255, 255, 255));
 
                 // Title
                 Gdiplus::Font fontTitle(L"Segoe UI", 20.0f, Gdiplus::FontStyleBold, Gdiplus::UnitPixel);

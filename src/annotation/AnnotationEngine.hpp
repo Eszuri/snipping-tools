@@ -8,7 +8,6 @@ private:
     std::vector<std::unique_ptr<AnnotationShape>> shapes;
     std::vector<std::unique_ptr<AnnotationShape>> redoStack;
     std::unique_ptr<AnnotationShape> activeShape;
-    int nextStepNumber = 1;
 
 public:
     AnnotationEngine() = default;
@@ -65,15 +64,6 @@ public:
         shapes.clear();
         redoStack.clear();
         activeShape.reset();
-        nextStepNumber = 1;
-    }
-
-    int GetNextStepNumber() {
-        return nextStepNumber++;
-    }
-
-    void ResetStepNumber() {
-        nextStepNumber = 1;
     }
 
     void RenderAll(Gdiplus::Graphics& g, Gdiplus::Bitmap* baseImage = nullptr) {

@@ -38,6 +38,7 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Source: "..\bin\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion restartreplace
 Source: "..\resources\app.ico"; DestDir: "{app}"; Flags: ignoreversion restartreplace
 Source: "..\README.md"; DestDir: "{app}"; Flags: ignoreversion restartreplace isreadme
+Source: "..\assets\icons\*"; DestDir: "{app}\assets\icons"; Flags: ignoreversion restartreplace
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\app.ico"
