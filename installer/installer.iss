@@ -1,5 +1,5 @@
 #define MyAppName "Snipping Tools"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.1"
 #define MyAppPublisher "Snipping Tools"
 #define MyAppExeName "NativeSnippingTool.exe"
 

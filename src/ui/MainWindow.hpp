@@ -1223,20 +1223,20 @@ public:
                 DrawPenDropdown(g);
             }
 
-            // 6. Bottom Status Bar with Zoom Level, Dimensions, PNG Size & Version v1.0
+            // 6. Bottom Status Bar with Zoom Level, Dimensions, PNG Size & Version v1.1
             int statusY = height - STATUS_BAR_HEIGHT;
             Gdiplus::SolidBrush statusBg(Gdiplus::Color(255, 28, 30, 34));
             g.FillRectangle(&statusBg, 0, statusY, width, STATUS_BAR_HEIGHT);
             g.DrawLine(&borderPen, 0, statusY, width, statusY);
 
-            // Version v1.0 Badge in Bottom-Right Corner
+            // Version v1.1 Badge in Bottom-Right Corner
             Gdiplus::Font fontVer(L"Segoe UI", 11.0f, Gdiplus::FontStyleBold, Gdiplus::UnitPixel);
             Gdiplus::SolidBrush verBrush(Gdiplus::Color(255, 120, 125, 135));
             Gdiplus::StringFormat sfRight;
             sfRight.SetAlignment(Gdiplus::StringAlignmentFar);
             sfRight.SetLineAlignment(Gdiplus::StringAlignmentCenter);
             Gdiplus::RectF verRect((float)(width - 56), (float)statusY, 40.0f, (float)STATUS_BAR_HEIGHT);
-            g.DrawString(L"v1.0", -1, &fontVer, verRect, &sfRight, &verBrush);
+            g.DrawString(L"v1.1", -1, &fontVer, verRect, &sfRight, &verBrush);
 
             float rightReservedWidth = 60.0f;
 
